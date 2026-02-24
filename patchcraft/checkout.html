@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout — PatchCraft</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .checkout-page { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  .checkout-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; }
+  @media (max-width: 768px) { .checkout-grid { grid-template-columns: 1fr; } }
+
+  .checkout-section {
+    background: var(--white); border-radius: var(--radius);
+    padding: 24px; box-shadow: 0 2px 10px var(--shadow);
+    margin-bottom: 24px;
+  }
+  .checkout-section h3 {
+    font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+
+  .address-card {
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 16px; cursor: pointer; margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .address-card:hover { border-color: var(--coral); }
+  .address-card.selected { border-color: var(--coral); background: var(--blush); }
+  .address-card .addr-name { font-weight: 600; }
+  .address-card .addr-detail { font-size: 0.85rem; color: var(--text-light); }
+
+  .shipping-option {
+    display: flex; align-items: center; gap: 12px;
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 16px; cursor: pointer; margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .shipping-option:hover { border-color: var(--coral); }
+  .shipping-option.selected { border-color: var(--coral); background: var(--blush); }
+  .shipping-option .ship-radio {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .shipping-option.selected .ship-radio::after {
+    content: ''; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--coral);
+  }
+
+  .payment-option {
+    display: flex; align-items: center; gap: 12px;
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    padding: 14px 16px; cursor: pointer; margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .payment-option:hover { border-color: var(--coral); }
+  .payment-option.selected { border-color: var(--coral); background: var(--blush); }
+
+  .order-summary-item {
+    display: flex; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .order-summary-item:last-child { border-bottom: none; }
+  .order-summary-item img {
+    width: 60px; height: 45px; border-radius: 6px;
+    object-fit: contain; background: var(--blush); flex-shrink: 0;
+  }
+  .osi-info { flex: 1; font-size: 0.85rem; }
+  .osi-price { font-weight: 700; color: var(--coral); white-space: nowrap; }
+
+  .total-row {
+    display: flex; justify-content: space-between; padding: 8px 0;
+    font-size: 0.9rem;
+  }
+  .total-row.grand { font-size: 1.2rem; font-weight: 700; color: var(--coral); padding-top: 12px; border-top: 2px solid var(--border); margin-top: 8px; }
+
+  /* Simulated payment modal */
+  .pay-modal .modal-box { max-width: 400px; text-align: center; }
+  .pay-spinner {
+    width: 48px; height: 48px; border: 4px solid var(--border);
+    border-top-color: var(--coral); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 20px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pay-success { font-size: 3rem; color: var(--sage); }
+</style>
+</head>
+<body>
+
+<nav id="main-nav"></nav>
+
+<div class="checkout-page">
+  <h1 style="font-family:var(--font-display);color:var(--dark);margin-bottom:32px">Checkout</h1>
+
+  <div class="checkout-grid">
+    <!-- Left: forms -->
+    <div>
+      <!-- Address -->
+      <div class="checkout-section">
+        <h3>Shipping Address</h3>
+        <div id="address-list"></div>
+        <button class="btn btn-outline btn-sm" id="btn-add-addr" style="margin-top:8px">+ Add New Address</button>
+      </div>
+
+      <!-- Shipping -->
+      <div class="checkout-section">
+        <h3>Shipping Method</h3>
+        <div id="shipping-options">
+          <div class="shipping-option selected" data-ship="standard" data-cost="4.99">
+            <div class="ship-radio"></div>
+            <div style="flex:1"><strong>Standard Shipping</strong><br><span style="font-size:0.85rem;color:var(--text-light)">7-14 business days</span></div>
+            <div style="font-weight:600">$4.99</div>
+          </div>
+          <div class="shipping-option" data-ship="express" data-cost="12.99">
+            <div class="ship-radio"></div>
+            <div style="flex:1"><strong>Express Shipping</strong><br><span style="font-size:0.85rem;color:var(--text-light)">3-5 business days</span></div>
+            <div style="font-weight:600">$12.99</div>
+          </div>
+          <div class="shipping-option" data-ship="overnight" data-cost="24.99">
+            <div class="ship-radio"></div>
+            <div style="flex:1"><strong>Overnight</strong><br><span style="font-size:0.85rem;color:var(--text-light)">1-2 business days</span></div>
+            <div style="font-weight:600">$24.99</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment -->
+      <div class="checkout-section">
+        <h3>Payment Method</h3>
+        <div id="payment-options">
+          <div class="payment-option selected" data-pay="card">
+            <svg width="24" height="24" fill="none" stroke="var(--text)" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+            <strong>Credit / Debit Card</strong>
+          </div>
+          <div class="payment-option" data-pay="paypal">
+            <svg width="24" height="24" fill="none" stroke="var(--text)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 8h5a3 3 0 010 6h-3l-1 4"/></svg>
+            <strong>PayPal</strong>
+          </div>
+          <div class="payment-option" data-pay="apple">
+            <svg width="24" height="24" fill="none" stroke="var(--text)" stroke-width="2"><path d="M12 2C9 2 7 5 7 8c0 4 5 14 5 14s5-10 5-14c0-3-2-6-5-6z"/></svg>
+            <strong>Apple Pay</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: summary -->
+    <div>
+      <div class="checkout-section" style="position:sticky;top:80px">
+        <h3>Order Summary</h3>
+        <div id="order-items"></div>
+        <div style="margin-top:16px">
+          <div class="total-row"><span>Subtotal</span><span id="sum-subtotal">$0.00</span></div>
+          <div class="total-row"><span>Shipping</span><span id="sum-shipping">$4.99</span></div>
+          <div class="total-row grand"><span>Total</span><span id="sum-total">$0.00</span></div>
+        </div>
+        <button class="btn btn-primary w-full mt-24" id="btn-pay" style="margin-top:20px;width:100%">Place Order</button>
+        <a href="cart.html" style="display:block;text-align:center;margin-top:12px;font-size:0.85rem">Back to Cart</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Address Modal -->
+<div class="modal-overlay" id="addr-modal">
+  <div class="modal-box">
+    <h3 class="modal-title" id="addr-modal-title">Add Address</h3>
+    <input type="hidden" id="addr-edit-id">
+    <div class="form-group"><label>Full Name</label><input class="form-control" id="addr-name" placeholder="John Doe"></div>
+    <div class="form-group"><label>Phone</label><input class="form-control" id="addr-phone" placeholder="+1 234 567 8900"></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Country</label><input class="form-control" id="addr-country" placeholder="United States"></div>
+      <div class="form-group"><label>State</label><input class="form-control" id="addr-state" placeholder="California"></div>
+    </div>
+    <div class="form-group"><label>City</label><input class="form-control" id="addr-city" placeholder="Los Angeles"></div>
+    <div class="form-group"><label>Street Address</label><input class="form-control" id="addr-street" placeholder="123 Main St"></div>
+    <div class="form-group"><label>ZIP Code</label><input class="form-control" id="addr-zip" placeholder="90001"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="addr-cancel">Cancel</button>
+      <button class="btn btn-primary" id="addr-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment simulation modal -->
+<div class="modal-overlay pay-modal" id="pay-modal">
+  <div class="modal-box">
+    <div id="pay-processing">
+      <h3>Processing Payment...</h3>
+      <div class="pay-spinner"></div>
+      <p style="color:var(--text-light)">Please wait</p>
+    </div>
+    <div id="pay-success" class="hidden">
+      <div class="pay-success">&#10003;</div>
+      <h3 style="margin-top:12px">Payment Successful!</h3>
+      <p style="color:var(--text-light);margin-top:8px">Your order has been placed</p>
+      <p style="margin-top:8px;font-weight:600" id="pay-order-id"></p>
+      <button class="btn btn-primary mt-24" id="btn-view-orders" style="margin-top:20px">View My Orders</button>
+    </div>
+  </div>
+</div>
+
+<footer class="footer"><p>&copy; 2026 PatchCraft</p></footer>
+
+<script src="js/data.js"></script>
+<script>
+  renderNav('cart');
+
+  let selectedAddrId = null;
+  let selectedShipping = { method: 'standard', cost: 4.99 };
+  let selectedPayment = 'card';
+
+  // ---- Render order items ----
+  function renderOrderItems() {
+    const items = DB.Cart.getAll();
+    const container = document.getElementById('order-items');
+    container.innerHTML = '';
+    items.forEach(item => {
+      const design = DB.Designs.getById(item.designId);
+      if (!design) return;
+      const carrier = DB.Carriers.getById(design.carrierId);
+      const price = DB.getDesignPrice(design) * (item.quantity || 1);
+      const thumbSrc = design.thumbnail || (carrier ? carrier.frontImage : '');
+      container.innerHTML += `<div class="order-summary-item">
+        <img src="${thumbSrc}" alt="">
+        <div class="osi-info">
+          <strong>${carrier ? carrier.name : 'Design'}</strong><br>
+          Qty: ${item.quantity || 1}
+        </div>
+        <div class="osi-price">${fmtPrice(price)}</div>
+      </div>`;
+    });
+    updateTotals();
+  }
+
+  function updateTotals() {
+    const subtotal = DB.Cart.getTotal();
+    const shipping = selectedShipping.cost;
+    document.getElementById('sum-subtotal').textContent = fmtPrice(subtotal);
+    document.getElementById('sum-shipping').textContent = fmtPrice(shipping);
+    document.getElementById('sum-total').textContent = fmtPrice(subtotal + shipping);
+  }
+
+  // ---- Addresses ----
+  function renderAddresses() {
+    const addrs = DB.Addresses.getAll();
+    const container = document.getElementById('address-list');
+    if (addrs.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-light);font-size:0.9rem">No saved addresses. Add one below.</p>';
+      return;
+    }
+    if (!selectedAddrId && addrs.length > 0) selectedAddrId = addrs[0].id;
+    container.innerHTML = '';
+    addrs.forEach(a => {
+      const el = document.createElement('div');
+      el.className = 'address-card' + (a.id === selectedAddrId ? ' selected' : '');
+      el.innerHTML = `
+        <div class="addr-name">${a.name} <span style="font-weight:400;color:var(--text-light)">${a.phone || ''}</span></div>
+        <div class="addr-detail">${a.street}, ${a.city}, ${a.state} ${a.zip}, ${a.country}</div>
+        <div style="margin-top:6px">
+          <button class="btn btn-sm btn-outline" style="padding:4px 10px;font-size:0.75rem" data-edit="${a.id}">Edit</button>
+          <button class="btn btn-sm" style="padding:4px 10px;font-size:0.75rem;color:#E85555;background:none" data-del="${a.id}">Delete</button>
+        </div>`;
+      el.addEventListener('click', e => {
+        if (e.target.dataset.edit || e.target.dataset.del) return;
+        selectedAddrId = a.id;
+        renderAddresses();
+      });
+      container.appendChild(el);
+    });
+    // Edit/Delete handlers
+    container.querySelectorAll('[data-edit]').forEach(btn =>
+      btn.addEventListener('click', () => openAddrModal(btn.dataset.edit))
+    );
+    container.querySelectorAll('[data-del]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        DB.Addresses.remove(btn.dataset.del);
+        if (selectedAddrId === btn.dataset.del) selectedAddrId = null;
+        renderAddresses();
+      })
+    );
+  }
+
+  // ---- Address modal ----
+  function openAddrModal(editId) {
+    const modal = document.getElementById('addr-modal');
+    modal.classList.add('open');
+    if (editId) {
+      const a = DB.Addresses.getById(editId);
+      document.getElementById('addr-modal-title').textContent = 'Edit Address';
+      document.getElementById('addr-edit-id').value = editId;
+      document.getElementById('addr-name').value = a.name || '';
+      document.getElementById('addr-phone').value = a.phone || '';
+      document.getElementById('addr-country').value = a.country || '';
+      document.getElementById('addr-state').value = a.state || '';
+      document.getElementById('addr-city').value = a.city || '';
+      document.getElementById('addr-street').value = a.street || '';
+      document.getElementById('addr-zip').value = a.zip || '';
+    } else {
+      document.getElementById('addr-modal-title').textContent = 'Add Address';
+      document.getElementById('addr-edit-id').value = '';
+      document.querySelectorAll('#addr-modal .form-control').forEach(i => i.value = '');
+    }
+  }
+
+  document.getElementById('btn-add-addr').addEventListener('click', () => openAddrModal(null));
+  document.getElementById('addr-cancel').addEventListener('click', () =>
+    document.getElementById('addr-modal').classList.remove('open'));
+
+  document.getElementById('addr-save').addEventListener('click', () => {
+    const name = document.getElementById('addr-name').value.trim();
+    const phone = document.getElementById('addr-phone').value.trim();
+    const country = document.getElementById('addr-country').value.trim();
+    const state = document.getElementById('addr-state').value.trim();
+    const city = document.getElementById('addr-city').value.trim();
+    const street = document.getElementById('addr-street').value.trim();
+    const zip = document.getElementById('addr-zip').value.trim();
+
+    if (!name || !country || !city || !street) {
+      return showToast('Please fill required fields', 'error');
+    }
+
+    const editId = document.getElementById('addr-edit-id').value;
+    const data = { name, phone, country, state, city, street, zip };
+    if (editId) {
+      DB.Addresses.update(editId, data);
+    } else {
+      const a = DB.Addresses.add(data);
+      selectedAddrId = a.id;
+    }
+    document.getElementById('addr-modal').classList.remove('open');
+    renderAddresses();
+    showToast('Address saved');
+  });
+
+  // ---- Shipping ----
+  document.querySelectorAll('.shipping-option').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.shipping-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedShipping = { method: el.dataset.ship, cost: parseFloat(el.dataset.cost) };
+      updateTotals();
+    });
+  });
+
+  // ---- Payment ----
+  document.querySelectorAll('.payment-option').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.payment-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedPayment = el.dataset.pay;
+    });
+  });
+
+  // ---- Place order ----
+  document.getElementById('btn-pay').addEventListener('click', () => {
+    if (!selectedAddrId) return showToast('Please select a shipping address', 'error');
+    const cartItems = DB.Cart.getAll();
+    if (cartItems.length === 0) return showToast('Cart is empty', 'error');
+
+    // Show payment processing
+    const payModal = document.getElementById('pay-modal');
+    payModal.classList.add('open');
+    document.getElementById('pay-processing').classList.remove('hidden');
+    document.getElementById('pay-success').classList.add('hidden');
+
+    // Simulate payment delay
+    setTimeout(() => {
+      // Create order
+      const order = DB.Orders.add({
+        items: JSON.parse(JSON.stringify(cartItems)),
+        addressId: selectedAddrId,
+        shipping: selectedShipping,
+        payment: selectedPayment,
+        subtotal: DB.Cart.getTotal(),
+        shippingCost: selectedShipping.cost,
+        total: DB.Cart.getTotal() + selectedShipping.cost,
+        status: 'paid',
+      });
+
+      // Clear cart
+      DB.Cart.clear();
+
+      // Show success
+      document.getElementById('pay-processing').classList.add('hidden');
+      document.getElementById('pay-success').classList.remove('hidden');
+      document.getElementById('pay-order-id').textContent = 'Order #' + order.id.toUpperCase();
+    }, 2000);
+  });
+
+  document.getElementById('btn-view-orders').addEventListener('click', () => {
+    window.location.href = 'user.html';
+  });
+
+  // ---- Init ----
+  renderOrderItems();
+  renderAddresses();
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — PatchCraft</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .user-page { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+  .tabs {
+    display: flex; gap: 0; margin-bottom: 32px;
+    border-bottom: 2px solid var(--border);
+  }
+  .tab-btn {
+    padding: 12px 24px; border: none; background: none;
+    font-weight: 500; font-size: 0.95rem; color: var(--text-light);
+    cursor: pointer; position: relative; transition: color 0.2s;
+  }
+  .tab-btn::after {
+    content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
+    height: 2px; background: transparent; transition: background 0.2s;
+  }
+  .tab-btn.active { color: var(--coral); }
+  .tab-btn.active::after { background: var(--coral); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .design-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+  .design-card {
+    background: var(--white); border-radius: var(--radius);
+    overflow: hidden; box-shadow: 0 2px 10px var(--shadow);
+  }
+  .design-card img {
+    width: 100%; aspect-ratio: 4/3; object-fit: contain;
+    background: var(--blush); padding: 12px;
+  }
+  .design-card .body { padding: 12px; }
+  .design-card .dc-name { font-weight: 600; font-size: 0.9rem; }
+  .design-card .dc-meta { font-size: 0.8rem; color: var(--text-light); }
+
+  .order-card {
+    background: var(--white); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+  .order-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 8px;
+  }
+  .order-items-list { margin-top: 12px; }
+  .order-item-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+  .order-item-row img { width: 50px; height: 38px; border-radius: 6px; object-fit: contain; background: var(--blush); }
+  .order-item-row .oir-info { flex: 1; font-size: 0.85rem; }
+
+  .address-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .addr-card-user {
+    background: var(--white); border-radius: var(--radius);
+    padding: 16px; box-shadow: 0 2px 10px var(--shadow);
+  }
+  .addr-card-user .name { font-weight: 600; margin-bottom: 4px; }
+  .addr-card-user .detail { font-size: 0.85rem; color: var(--text-light); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<nav id="main-nav"></nav>
+
+<div class="user-page">
+  <h1 style="font-family:var(--font-display);color:var(--dark);margin-bottom:32px">My Account</h1>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="designs">My Designs</button>
+    <button class="tab-btn" data-tab="orders">My Orders</button>
+    <button class="tab-btn" data-tab="addresses">Addresses</button>
+  </div>
+
+  <!-- Designs -->
+  <div class="tab-content active" id="tab-designs">
+    <div class="design-grid" id="design-grid"></div>
+    <div id="designs-empty" class="empty-state hidden">
+      <div class="icon">&#127912;</div>
+      <p>No designs yet</p>
+      <a href="create.html" class="btn btn-primary" style="margin-top:16px">Start Creating</a>
+    </div>
+  </div>
+
+  <!-- Orders -->
+  <div class="tab-content" id="tab-orders">
+    <div id="order-list"></div>
+    <div id="orders-empty" class="empty-state hidden">
+      <div class="icon">&#128230;</div>
+      <p>No orders yet</p>
+    </div>
+  </div>
+
+  <!-- Addresses -->
+  <div class="tab-content" id="tab-addresses">
+    <div class="address-grid" id="addr-grid"></div>
+    <div id="addr-empty" class="empty-state hidden">
+      <div class="icon">&#128205;</div>
+      <p>No saved addresses</p>
+    </div>
+  </div>
+</div>
+
+<footer class="footer"><p>&copy; 2026 PatchCraft</p></footer>
+
+<script src="js/data.js"></script>
+<script>
+  renderNav('user');
+
+  // ---- Tabs ----
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ---- Designs ----
+  function renderDesigns() {
+    const designs = DB.Designs.getAll().reverse();
+    const grid = document.getElementById('design-grid');
+    const empty = document.getElementById('designs-empty');
+    if (designs.length === 0) { empty.classList.remove('hidden'); grid.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    grid.innerHTML = '';
+    designs.forEach(d => {
+      const carrier = DB.Carriers.getById(d.carrierId);
+      const allPatches = [...(d.frontPatches||[]), ...(d.backPatches||[])];
+      const thumbSrc = d.thumbnail || (carrier ? carrier.frontImage : '');
+      const date = new Date(d.createdAt).toLocaleDateString();
+      grid.innerHTML += `<div class="design-card">
+        <img src="${thumbSrc}" alt="design">
+        <div class="body">
+          <div class="dc-name">${carrier ? carrier.name : 'Design'}</div>
+          <div class="dc-meta">${allPatches.length} patches · ${date}</div>
+          <div style="margin-top:8px;font-weight:600;color:var(--coral)">${fmtPrice(DB.getDesignPrice(d))}</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // ---- Orders ----
+  function renderOrders() {
+    const orders = DB.Orders.getAll().reverse();
+    const container = document.getElementById('order-list');
+    const empty = document.getElementById('orders-empty');
+    if (orders.length === 0) { empty.classList.remove('hidden'); container.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    container.innerHTML = '';
+
+    const statusMap = { pending: 'badge-pending', paid: 'badge-paid', shipped: 'badge-shipped', done: 'badge-done' };
+    const statusLabel = { pending: 'Pending', paid: 'Paid', shipped: 'Shipped', done: 'Completed' };
+
+    orders.forEach(o => {
+      const date = new Date(o.createdAt).toLocaleDateString();
+      const addr = DB.Addresses.getById(o.addressId);
+      let itemsHtml = '';
+      (o.items || []).forEach(item => {
+        const design = DB.Designs.getById(item.designId);
+        if (!design) return;
+        const carrier = DB.Carriers.getById(design.carrierId);
+        const thumbSrc = design.thumbnail || (carrier ? carrier.frontImage : '');
+        itemsHtml += `<div class="order-item-row">
+          <img src="${thumbSrc}" alt="">
+          <div class="oir-info">${carrier ? carrier.name : 'Design'} × ${item.quantity || 1}</div>
+        </div>`;
+      });
+
+      container.innerHTML += `<div class="order-card">
+        <div class="order-header">
+          <div>
+            <strong>Order #${o.id.toUpperCase()}</strong>
+            <span style="color:var(--text-light);font-size:0.85rem;margin-left:12px">${date}</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge ${statusMap[o.status] || 'badge-pending'}">${statusLabel[o.status] || o.status}</span>
+            <strong style="color:var(--coral)">${fmtPrice(o.total)}</strong>
+          </div>
+        </div>
+        ${addr ? `<div style="font-size:0.85rem;color:var(--text-light)">Ship to: ${addr.name}, ${addr.street}, ${addr.city}, ${addr.state} ${addr.zip}</div>` : ''}
+        <div style="font-size:0.85rem;color:var(--text-light)">Shipping: ${o.shipping?.method || 'standard'} · Payment: ${o.payment || 'card'}</div>
+        <div class="order-items-list">${itemsHtml}</div>
+      </div>`;
+    });
+  }
+
+  // ---- Addresses ----
+  function renderAddresses() {
+    const addrs = DB.Addresses.getAll();
+    const grid = document.getElementById('addr-grid');
+    const empty = document.getElementById('addr-empty');
+    if (addrs.length === 0) { empty.classList.remove('hidden'); grid.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    grid.innerHTML = '';
+    addrs.forEach(a => {
+      grid.innerHTML += `<div class="addr-card-user">
+        <div class="name">${a.name} <span style="font-weight:400;color:var(--text-light)">${a.phone || ''}</span></div>
+        <div class="detail">${a.street}<br>${a.city}, ${a.state} ${a.zip}<br>${a.country}</div>
+      </div>`;
+    });
+  }
+
+  renderDesigns();
+  renderOrders();
+  renderAddresses();
+</script>
+</body>
+</html>

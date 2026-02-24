@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Your Design — PatchCraft</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .create-wrap {
+    display: flex; min-height: calc(100vh - var(--nav-h));
+  }
+
+  /* ---- Sidebar ---- */
+  .create-sidebar {
+    width: 300px; background: var(--white);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto; flex-shrink: 0;
+  }
+  .sidebar-section { padding: 20px; border-bottom: 1px solid var(--border); }
+  .sidebar-section h3 {
+    font-size: 0.95rem; font-weight: 600; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Carrier list in step 1 */
+  .carrier-option {
+    display: flex; gap: 12px; align-items: center;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    cursor: pointer; transition: background 0.2s;
+    border: 2px solid transparent; margin-bottom: 8px;
+  }
+  .carrier-option:hover { background: var(--blush); }
+  .carrier-option.selected { border-color: var(--coral); background: var(--blush); }
+  .carrier-option img { width: 60px; height: 42px; object-fit: contain; border-radius: 6px; background: var(--cream); }
+  .carrier-option .info { flex: 1; }
+  .carrier-option .co-name { font-weight: 600; font-size: 0.85rem; }
+  .carrier-option .co-meta { font-size: 0.75rem; color: var(--text-light); }
+  .carrier-option .co-price { font-weight: 700; color: var(--coral); font-size: 0.85rem; }
+
+  /* Patch list in step 2 */
+  .patch-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .patch-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .patch-item {
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    padding: 6px; text-align: center; cursor: grab;
+    transition: border-color 0.2s, transform 0.15s;
+    background: var(--white);
+  }
+  .patch-item:hover { border-color: var(--coral); transform: scale(1.05); }
+  .patch-item img { width: 100%; aspect-ratio: 1; object-fit: contain; pointer-events: none; }
+  .patch-item .pi-name { font-size: 0.65rem; font-weight: 500; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .patch-item .pi-price { font-size: 0.6rem; color: var(--coral); font-weight: 600; }
+
+  /* ---- Main canvas area ---- */
+  .create-main {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; background: var(--cream);
+    position: relative; overflow: hidden;
+  }
+
+  .editor-toolbar {
+    display: flex; gap: 12px; margin-bottom: 16px; align-items: center;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .side-toggle {
+    display: flex; border-radius: 50px; overflow: hidden; border: 2px solid var(--border);
+  }
+  .side-toggle button {
+    padding: 8px 20px; border: none; background: var(--white); cursor: pointer;
+    font-weight: 500; font-size: 0.85rem; transition: all 0.2s;
+  }
+  .side-toggle button.active { background: var(--coral); color: var(--white); }
+
+  /* Canvas wrapper */
+  .canvas-area {
+    position: relative;
+    background: repeating-conic-gradient(#f0e8e0 0% 25%, #fff8f0 0% 50%) 50% / 20px 20px;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px var(--shadow-md);
+    overflow: hidden;
+  }
+  .canvas-area img.carrier-bg {
+    display: block; width: 100%; height: 100%;
+    pointer-events: none; user-select: none;
+  }
+
+  /* Patch area overlay */
+  .patch-zone {
+    position: absolute; border: 2px dashed rgba(232,131,93,0.4);
+    border-radius: 6px;
+  }
+
+  /* Placed patches */
+  .placed-patch {
+    position: absolute; cursor: move; user-select: none;
+    touch-action: none;
+  }
+  .placed-patch img {
+    display: block; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .placed-patch.selected { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  /* Rotation handle */
+  .rotate-handle {
+    position: absolute; top: -28px; left: 50%; transform: translateX(-50%);
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--coral); cursor: grab;
+    display: none; border: 2px solid var(--white);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .rotate-handle::before {
+    content: ''; position: absolute; top: 100%; left: 50%;
+    width: 1px; height: 8px; background: var(--coral);
+  }
+  .placed-patch.selected .rotate-handle { display: block; }
+
+  /* Delete button on selected patch */
+  .delete-handle {
+    position: absolute; top: -10px; right: -10px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #E85555; color: white;
+    display: none; align-items: center; justify-content: center;
+    font-size: 14px; line-height: 1; cursor: pointer;
+    border: 2px solid var(--white);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .placed-patch.selected .delete-handle { display: flex; }
+
+  /* Drag ghost for new patch */
+  .drag-ghost {
+    position: fixed; pointer-events: none; z-index: 300;
+    opacity: 0.8; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  }
+
+  /* ---- Step 3 summary ---- */
+  .summary-wrap {
+    max-width: 600px; margin: 0 auto;
+  }
+  .summary-preview {
+    display: flex; gap: 16px; margin-bottom: 20px; justify-content: center;
+  }
+  .summary-preview .thumb {
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border);
+    overflow: hidden; background: var(--blush);
+  }
+  .summary-preview .thumb canvas { display: block; }
+  .summary-table { width: 100%; }
+  .summary-table td { padding: 6px 0; font-size: 0.9rem; }
+  .summary-table .label { color: var(--text-light); }
+  .summary-table .value { text-align: right; font-weight: 600; }
+  .summary-total { font-size: 1.2rem; color: var(--coral); }
+
+  /* Price bar */
+  .price-bar {
+    position: fixed; bottom: 0; left: 300px; right: 0;
+    background: var(--white); border-top: 1px solid var(--border);
+    padding: 12px 24px; display: flex; justify-content: space-between;
+    align-items: center; z-index: 50;
+  }
+  .price-bar .total { font-size: 1.2rem; font-weight: 700; color: var(--coral); }
+
+  @media (max-width: 768px) {
+    .create-wrap { flex-direction: column; }
+    .create-sidebar { width: 100%; max-height: 40vh; }
+    .price-bar { left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav id="main-nav"></nav>
+
+<!-- Steps -->
+<div class="container" style="padding-top:20px">
+  <div class="steps" id="steps-bar">
+    <div class="step-item active" data-step="1"><span class="step-num">1</span> Choose Carrier</div>
+    <div class="step-line"></div>
+    <div class="step-item" data-step="2"><span class="step-num">2</span> Add Patches</div>
+    <div class="step-line"></div>
+    <div class="step-item" data-step="3"><span class="step-num">3</span> Save &amp; Order</div>
+  </div>
+</div>
+
+<div class="create-wrap">
+  <!-- Sidebar -->
+  <aside class="create-sidebar" id="sidebar">
+    <!-- Step 1: carrier list -->
+    <div id="sidebar-step1">
+      <div class="sidebar-section">
+        <h3>Select Carrier</h3>
+        <div id="carrier-list"></div>
+      </div>
+    </div>
+
+    <!-- Step 2: patch list -->
+    <div id="sidebar-step2" class="hidden">
+      <div class="sidebar-section">
+        <h3>Filter by Category</h3>
+        <div class="patch-filters" id="cat-filters"></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Filter by Color</h3>
+        <div class="patch-filters" id="color-filters"></div>
+      </div>
+      <div class="sidebar-section" style="flex:1">
+        <h3>Patches</h3>
+        <div class="patch-grid" id="patch-list"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: summary -->
+    <div id="sidebar-step3" class="hidden">
+      <div class="sidebar-section">
+        <h3>Design Summary</h3>
+        <div id="summary-content"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="create-main" id="main-area">
+    <!-- Step 1 placeholder -->
+    <div id="main-step1">
+      <div class="empty-state">
+        <div class="icon">&#128092;</div>
+        <p>Select a carrier from the left to get started</p>
+      </div>
+    </div>
+
+    <!-- Step 2 editor -->
+    <div id="main-step2" class="hidden" style="width:100%;display:flex;flex-direction:column;align-items:center">
+      <div class="editor-toolbar">
+        <div class="side-toggle">
+          <button id="btn-front" class="active">Front</button>
+          <button id="btn-back">Back</button>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btn-clear-side">Clear This Side</button>
+        <button class="btn btn-outline btn-sm" id="btn-undo">Undo</button>
+      </div>
+      <div class="canvas-area" id="canvas-area">
+        <img class="carrier-bg" id="carrier-img" src="" alt="carrier">
+        <div class="patch-zone" id="patch-zone"></div>
+        <!-- placed patches go here -->
+      </div>
+    </div>
+
+    <!-- Step 3 confirm -->
+    <div id="main-step3" class="hidden" style="width:100%">
+      <div class="summary-wrap">
+        <h2 style="text-align:center;margin-bottom:24px;font-family:var(--font-display);color:var(--dark)">Your Creation</h2>
+        <div class="summary-preview" id="preview-images"></div>
+        <div id="summary-details"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Price bar -->
+<div class="price-bar" id="price-bar" style="display:none">
+  <div>
+    <span style="color:var(--text-light);font-size:0.9rem">Estimated Total: </span>
+    <span class="total" id="price-total">$0.00</span>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-outline btn-sm" id="btn-prev">Back</button>
+    <button class="btn btn-primary btn-sm" id="btn-next">Next Step</button>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/create.js"></script>
+</body>
+</html>

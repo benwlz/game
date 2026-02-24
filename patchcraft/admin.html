@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — PatchCraft</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .admin-page { display: flex; min-height: 100vh; }
+  .admin-nav {
+    width: 220px; background: var(--white);
+    border-right: 1px solid var(--border);
+    padding-top: 20px; flex-shrink: 0;
+  }
+  .admin-nav .logo {
+    font-family: var(--font-display); font-size: 1.3rem;
+    color: var(--coral); padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-nav a {
+    display: block; padding: 12px 20px;
+    color: var(--text-light); font-weight: 500; font-size: 0.9rem;
+    transition: all 0.2s; border-left: 3px solid transparent;
+  }
+  .admin-nav a:hover, .admin-nav a.active {
+    background: var(--blush); color: var(--coral); border-left-color: var(--coral);
+  }
+  .admin-main { flex: 1; padding: 32px; overflow-y: auto; background: var(--cream); }
+  .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .admin-header h2 { font-size: 1.5rem; font-weight: 700; color: var(--dark); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* Image upload area */
+  .img-upload {
+    border: 2px dashed var(--border); border-radius: var(--radius-sm);
+    padding: 20px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s; position: relative;
+    background: var(--cream); min-height: 120px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .img-upload:hover { border-color: var(--coral); }
+  .img-upload input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .img-upload img.preview {
+    max-width: 100%; max-height: 150px; border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  /* BG removal tool */
+  .bgr-tool { margin-top: 12px; }
+  .bgr-controls {
+    display: flex; gap: 12px; align-items: center; margin: 12px 0; flex-wrap: wrap;
+  }
+  .bgr-controls label { font-size: 0.85rem; font-weight: 500; }
+  .bgr-controls input[type=range] { width: 120px; }
+  .bgr-preview {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    overflow: hidden; display: inline-block;
+    background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+  }
+
+  /* Design viewer */
+  .design-viewer { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+  .dv-card {
+    background: var(--white); border-radius: var(--radius-sm);
+    overflow: hidden; box-shadow: 0 2px 8px var(--shadow);
+  }
+  .dv-card img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: var(--blush); padding: 8px; }
+  .dv-card .body { padding: 10px; font-size: 0.8rem; }
+
+  @media (max-width: 768px) {
+    .admin-page { flex-direction: column; }
+    .admin-nav { width: 100%; display: flex; overflow-x: auto; padding: 0; }
+    .admin-nav .logo { display: none; }
+    .admin-nav a { white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+    .admin-nav a.active { border-bottom-color: var(--coral); }
+  }
+</style>
+</head>
+<body>
+
+<div class="admin-page">
+  <!-- Sidebar -->
+  <nav class="admin-nav">
+    <div class="logo">PatchCraft Admin</div>
+    <a href="#" class="active" data-section="dashboard">Dashboard</a>
+    <a href="#" data-section="carriers">Carriers</a>
+    <a href="#" data-section="patches">Patches</a>
+    <a href="#" data-section="designs">User Designs</a>
+    <a href="#" data-section="orders">Orders</a>
+    <a href="index.html" style="margin-top:auto;border-top:1px solid var(--border)">Back to Site</a>
+  </nav>
+
+  <main class="admin-main" id="admin-main">
+    <!-- Dashboard -->
+    <section id="sec-dashboard">
+      <div class="admin-header"><h2>Dashboard</h2></div>
+      <div class="stat-grid" id="stat-grid"></div>
+      <div class="admin-header" style="margin-top:32px"><h2>Recent Orders</h2></div>
+      <div class="table-wrap"><table class="styled" id="recent-orders-table"><thead><tr><th>Order ID</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- Carriers -->
+    <section id="sec-carriers" class="hidden">
+      <div class="admin-header">
+        <h2>Carriers</h2>
+        <button class="btn btn-primary btn-sm" id="btn-add-carrier">+ Add Carrier</button>
+      </div>
+      <div class="table-wrap">
+        <table class="styled" id="carrier-table">
+          <thead><tr><th>Image</th><th>Name</th><th>Size (mm)</th><th>Color</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Patches -->
+    <section id="sec-patches" class="hidden">
+      <div class="admin-header">
+        <h2>Patches</h2>
+        <button class="btn btn-primary btn-sm" id="btn-add-patch">+ Add Patch</button>
+      </div>
+      <div class="table-wrap">
+        <table class="styled" id="patch-table">
+          <thead><tr><th>Image</th><th>Name</th><th>Size (mm)</th><th>Category</th><th>Color</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- User Designs -->
+    <section id="sec-designs" class="hidden">
+      <div class="admin-header"><h2>User Designs</h2></div>
+      <div class="design-viewer" id="admin-designs"></div>
+      <div id="designs-empty" class="empty-state hidden"><div class="icon">&#127912;</div><p>No designs yet</p></div>
+    </section>
+
+    <!-- Orders -->
+    <section id="sec-orders" class="hidden">
+      <div class="admin-header"><h2>All Orders</h2></div>
+      <div class="table-wrap">
+        <table class="styled" id="order-table">
+          <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Carrier/Patch Form Modal -->
+<div class="modal-overlay" id="form-modal">
+  <div class="modal-box" style="max-width:640px">
+    <h3 class="modal-title" id="form-title">Add Carrier</h3>
+    <form id="item-form">
+      <input type="hidden" id="f-id">
+      <input type="hidden" id="f-type"> <!-- 'carrier' or 'patch' -->
+
+      <div class="form-row">
+        <div class="form-group"><label>Name (EN)</label><input class="form-control" id="f-name" required></div>
+        <div class="form-group"><label>Name (CN)</label><input class="form-control" id="f-nameZh"></div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group"><label>Width (mm)</label><input class="form-control" id="f-width" type="number" required></div>
+        <div class="form-group"><label>Height (mm)</label><input class="form-control" id="f-height" type="number" required></div>
+        <div class="form-group"><label>Price ($)</label><input class="form-control" id="f-price" type="number" step="0.01" required></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Color</label><input class="form-control" id="f-color" placeholder="e.g. brown, red, blue"></div>
+        <div class="form-group" id="f-category-group"><label>Category</label><input class="form-control" id="f-category" placeholder="e.g. floral, animal"></div>
+      </div>
+
+      <!-- Images -->
+      <div id="carrier-images">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Front Image</label>
+            <div class="img-upload" id="upload-front">
+              <input type="file" accept="image/*" data-target="front">
+              <img class="preview hidden" id="prev-front">
+              <span class="upload-text">Click or drag to upload</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline bgr-btn mt-16" data-bgr="front" style="margin-top:8px;display:none">Remove Background</button>
+          </div>
+          <div class="form-group">
+            <label>Back Image</label>
+            <div class="img-upload" id="upload-back">
+              <input type="file" accept="image/*" data-target="back">
+              <img class="preview hidden" id="prev-back">
+              <span class="upload-text">Click or drag to upload</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline bgr-btn mt-16" data-bgr="back" style="margin-top:8px;display:none">Remove Background</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="patch-image" class="hidden">
+        <div class="form-group">
+          <label>Patch Image</label>
+          <div class="img-upload" id="upload-patch">
+            <input type="file" accept="image/*" data-target="patch">
+            <img class="preview hidden" id="prev-patch">
+            <span class="upload-text">Click or drag to upload (PNG with transparency preferred)</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline bgr-btn mt-16" data-bgr="patch" style="margin-top:8px;display:none">Remove Background</button>
+        </div>
+      </div>
+
+      <!-- Patch area (carrier only) -->
+      <div id="patch-area-fields">
+        <h4 style="margin:16px 0 12px;font-size:0.95rem">Patch-able Area (mm from top-left)</h4>
+        <div class="form-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="form-group"><label>X</label><input class="form-control" id="f-pa-x" type="number" value="10"></div>
+          <div class="form-group"><label>Y</label><input class="form-control" id="f-pa-y" type="number" value="10"></div>
+          <div class="form-group"><label>Width</label><input class="form-control" id="f-pa-w" type="number"></div>
+          <div class="form-group"><label>Height</label><input class="form-control" id="f-pa-h" type="number"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="form-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Background Removal Modal -->
+<div class="modal-overlay" id="bgr-modal">
+  <div class="modal-box" style="max-width:700px">
+    <h3 class="modal-title">Background Removal Tool</h3>
+    <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px">Click on the area you want to remove. Adjust tolerance to refine.</p>
+    <div class="bgr-controls">
+      <label>Tolerance:</label>
+      <input type="range" id="bgr-tolerance" min="1" max="100" value="30">
+      <span id="bgr-tol-val">30</span>
+      <button class="btn btn-sm btn-outline" id="bgr-reset">Reset</button>
+      <button class="btn btn-sm btn-primary" id="bgr-apply">Apply & Use</button>
+    </div>
+    <div class="bgr-preview">
+      <canvas id="bgr-canvas" style="max-width:100%;cursor:crosshair"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Order Status Modal -->
+<div class="modal-overlay" id="status-modal">
+  <div class="modal-box" style="max-width:360px">
+    <h3 class="modal-title">Update Order Status</h3>
+    <input type="hidden" id="status-order-id">
+    <div class="form-group">
+      <label>Status</label>
+      <select class="form-control" id="status-select">
+        <option value="pending">Pending</option>
+        <option value="paid">Paid</option>
+        <option value="shipped">Shipped</option>
+        <option value="done">Completed</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="status-cancel">Cancel</button>
+      <button class="btn btn-primary" id="status-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script>
+(() => {
+  // ---- Navigation ----
+  const sections = ['dashboard','carriers','patches','designs','orders'];
+  document.querySelectorAll('.admin-nav a[data-section]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const sec = a.dataset.section;
+      document.querySelectorAll('.admin-nav a').forEach(l => l.classList.remove('active'));
+      a.classList.add('active');
+      sections.forEach(s => {
+        const el = document.getElementById('sec-' + s);
+        if (el) el.classList.toggle('hidden', s !== sec);
+      });
+      if (sec === 'dashboard') renderDashboard();
+      if (sec === 'carriers') renderCarrierTable();
+      if (sec === 'patches') renderPatchTable();
+      if (sec === 'designs') renderDesigns();
+      if (sec === 'orders') renderOrderTable();
+    });
+  });
+
+  // =====================
+  // Dashboard
+  // =====================
+  function renderDashboard() {
+    const orders = DB.Orders.getAll();
+    const designs = DB.Designs.getAll();
+    const carriers = DB.Carriers.getAll();
+    const patches = DB.Patches.getAll();
+    const revenue = orders.reduce((s, o) => s + (o.total || 0), 0);
+
+    document.getElementById('stat-grid').innerHTML = `
+      <div class="stat-card"><div class="label">Total Orders</div><div class="value">${orders.length}</div></div>
+      <div class="stat-card"><div class="label">Revenue</div><div class="value">${fmtPrice(revenue)}</div></div>
+      <div class="stat-card"><div class="label">User Designs</div><div class="value">${designs.length}</div></div>
+      <div class="stat-card"><div class="label">Carriers</div><div class="value">${carriers.length}</div></div>
+      <div class="stat-card"><div class="label">Patches</div><div class="value">${patches.length}</div></div>`;
+
+    // Recent orders
+    const tbody = document.querySelector('#recent-orders-table tbody');
+    tbody.innerHTML = '';
+    const statusBadge = { pending:'badge-pending', paid:'badge-paid', shipped:'badge-shipped', done:'badge-done' };
+    orders.slice(-5).reverse().forEach(o => {
+      const date = new Date(o.createdAt).toLocaleDateString();
+      tbody.innerHTML += `<tr>
+        <td><strong>#${o.id.toUpperCase().slice(0,8)}</strong></td>
+        <td>${date}</td>
+        <td>${(o.items||[]).length}</td>
+        <td>${fmtPrice(o.total)}</td>
+        <td><span class="badge ${statusBadge[o.status]||''}">${o.status}</span></td>
+      </tr>`;
+    });
+  }
+  renderDashboard();
+
+  // =====================
+  // Carrier Table
+  // =====================
+  function renderCarrierTable() {
+    const tbody = document.querySelector('#carrier-table tbody');
+    tbody.innerHTML = '';
+    DB.Carriers.getAll().forEach(c => {
+      const statusCls = c.status === 'active' ? 'badge-active' : 'badge-inactive';
+      tbody.innerHTML += `<tr>
+        <td><img class="thumb" src="${c.frontImage}" alt="${c.name}"></td>
+        <td><strong>${c.name}</strong><br><span style="font-size:0.8rem;color:var(--text-light)">${c.nameZh||''}</span></td>
+        <td>${c.realWidth}×${c.realHeight}</td>
+        <td>${c.color||''}</td>
+        <td>${fmtPrice(c.price)}</td>
+        <td><span class="badge ${statusCls}">${c.status}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline" data-edit-carrier="${c.id}">Edit</button>
+          <button class="btn btn-sm" style="color:#E85555;background:none" data-toggle-carrier="${c.id}">${c.status==='active'?'Deactivate':'Activate'}</button>
+        </td>
+      </tr>`;
+    });
+    // Events
+    tbody.querySelectorAll('[data-edit-carrier]').forEach(btn =>
+      btn.addEventListener('click', () => openCarrierForm(btn.dataset.editCarrier)));
+    tbody.querySelectorAll('[data-toggle-carrier]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const c = DB.Carriers.getById(btn.dataset.toggleCarrier);
+        DB.Carriers.update(c.id, { status: c.status === 'active' ? 'inactive' : 'active' });
+        renderCarrierTable();
+      }));
+  }
+
+  document.getElementById('btn-add-carrier').addEventListener('click', () => openCarrierForm(null));
+
+  function openCarrierForm(editId) {
+    const modal = document.getElementById('form-modal');
+    const form = document.getElementById('item-form');
+    document.getElementById('f-type').value = 'carrier';
+    document.getElementById('f-category-group').style.display = 'none';
+    document.getElementById('carrier-images').classList.remove('hidden');
+    document.getElementById('patch-image').classList.add('hidden');
+    document.getElementById('patch-area-fields').classList.remove('hidden');
+    imageData = { front: null, back: null, patch: null };
+
+    if (editId) {
+      const c = DB.Carriers.getById(editId);
+      document.getElementById('form-title').textContent = 'Edit Carrier';
+      document.getElementById('f-id').value = editId;
+      document.getElementById('f-name').value = c.name || '';
+      document.getElementById('f-nameZh').value = c.nameZh || '';
+      document.getElementById('f-width').value = c.realWidth || '';
+      document.getElementById('f-height').value = c.realHeight || '';
+      document.getElementById('f-price').value = c.price || '';
+      document.getElementById('f-color').value = c.color || '';
+      document.getElementById('f-pa-x').value = c.patchArea?.x || 10;
+      document.getElementById('f-pa-y').value = c.patchArea?.y || 10;
+      document.getElementById('f-pa-w').value = c.patchArea?.w || '';
+      document.getElementById('f-pa-h').value = c.patchArea?.h || '';
+      // Show existing images
+      showPreview('front', c.frontImage);
+      showPreview('back', c.backImage);
+      imageData.front = c.frontImage;
+      imageData.back = c.backImage;
+    } else {
+      document.getElementById('form-title').textContent = 'Add Carrier';
+      form.reset();
+      document.getElementById('f-id').value = '';
+      hidePreview('front'); hidePreview('back'); hidePreview('patch');
+    }
+    modal.classList.add('open');
+  }
+
+  // =====================
+  // Patch Table
+  // =====================
+  function renderPatchTable() {
+    const tbody = document.querySelector('#patch-table tbody');
+    tbody.innerHTML = '';
+    DB.Patches.getAll().forEach(p => {
+      const statusCls = p.status === 'active' ? 'badge-active' : 'badge-inactive';
+      tbody.innerHTML += `<tr>
+        <td><img class="thumb" src="${p.image}" alt="${p.name}" style="background:repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 8px 8px"></td>
+        <td><strong>${p.name}</strong><br><span style="font-size:0.8rem;color:var(--text-light)">${p.nameZh||''}</span></td>
+        <td>${p.realWidth}×${p.realHeight}</td>
+        <td>${p.category||''}</td>
+        <td>${p.color||''}</td>
+        <td>${fmtPrice(p.price)}</td>
+        <td><span class="badge ${statusCls}">${p.status}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline" data-edit-patch="${p.id}">Edit</button>
+          <button class="btn btn-sm" style="color:#E85555;background:none" data-toggle-patch="${p.id}">${p.status==='active'?'Deactivate':'Activate'}</button>
+        </td>
+      </tr>`;
+    });
+    tbody.querySelectorAll('[data-edit-patch]').forEach(btn =>
+      btn.addEventListener('click', () => openPatchForm(btn.dataset.editPatch)));
+    tbody.querySelectorAll('[data-toggle-patch]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const p = DB.Patches.getById(btn.dataset.togglePatch);
+        DB.Patches.update(p.id, { status: p.status === 'active' ? 'inactive' : 'active' });
+        renderPatchTable();
+      }));
+  }
+
+  document.getElementById('btn-add-patch').addEventListener('click', () => openPatchForm(null));
+
+  function openPatchForm(editId) {
+    const modal = document.getElementById('form-modal');
+    const form = document.getElementById('item-form');
+    document.getElementById('f-type').value = 'patch';
+    document.getElementById('f-category-group').style.display = '';
+    document.getElementById('carrier-images').classList.add('hidden');
+    document.getElementById('patch-image').classList.remove('hidden');
+    document.getElementById('patch-area-fields').classList.add('hidden');
+    imageData = { front: null, back: null, patch: null };
+
+    if (editId) {
+      const p = DB.Patches.getById(editId);
+      document.getElementById('form-title').textContent = 'Edit Patch';
+      document.getElementById('f-id').value = editId;
+      document.getElementById('f-name').value = p.name || '';
+      document.getElementById('f-nameZh').value = p.nameZh || '';
+      document.getElementById('f-width').value = p.realWidth || '';
+      document.getElementById('f-height').value = p.realHeight || '';
+      document.getElementById('f-price').value = p.price || '';
+      document.getElementById('f-color').value = p.color || '';
+      document.getElementById('f-category').value = p.category || '';
+      showPreview('patch', p.image);
+      imageData.patch = p.image;
+    } else {
+      document.getElementById('form-title').textContent = 'Add Patch';
+      form.reset();
+      document.getElementById('f-id').value = '';
+      hidePreview('front'); hidePreview('back'); hidePreview('patch');
+    }
+    modal.classList.add('open');
+  }
+
+  // ---- Form submit ----
+  document.getElementById('item-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const type = document.getElementById('f-type').value;
+    const editId = document.getElementById('f-id').value;
+    const name = document.getElementById('f-name').value.trim();
+    const nameZh = document.getElementById('f-nameZh').value.trim();
+    const realWidth = parseFloat(document.getElementById('f-width').value);
+    const realHeight = parseFloat(document.getElementById('f-height').value);
+    const price = parseFloat(document.getElementById('f-price').value);
+    const color = document.getElementById('f-color').value.trim();
+
+    if (!name || !realWidth || !realHeight) return showToast('Please fill required fields', 'error');
+
+    if (type === 'carrier') {
+      const frontImage = imageData.front;
+      const backImage = imageData.back;
+      const patchArea = {
+        x: parseFloat(document.getElementById('f-pa-x').value) || 10,
+        y: parseFloat(document.getElementById('f-pa-y').value) || 10,
+        w: parseFloat(document.getElementById('f-pa-w').value) || (realWidth - 20),
+        h: parseFloat(document.getElementById('f-pa-h').value) || (realHeight - 20),
+      };
+      const data = { name, nameZh, frontImage, backImage, realWidth, realHeight, price, color, patchArea, backPatchArea: { ...patchArea } };
+      if (editId) DB.Carriers.update(editId, data);
+      else DB.Carriers.add(data);
+      renderCarrierTable();
+    } else {
+      const category = document.getElementById('f-category').value.trim();
+      const image = imageData.patch;
+      const data = { name, nameZh, image, realWidth, realHeight, price, color, category };
+      if (editId) DB.Patches.update(editId, data);
+      else DB.Patches.add(data);
+      renderPatchTable();
+    }
+
+    document.getElementById('form-modal').classList.remove('open');
+    showToast(editId ? 'Updated successfully' : 'Added successfully');
+  });
+
+  document.getElementById('form-cancel').addEventListener('click', () =>
+    document.getElementById('form-modal').classList.remove('open'));
+
+  // ---- Image upload handling ----
+  let imageData = { front: null, back: null, patch: null };
+
+  function showPreview(target, src) {
+    const prev = document.getElementById('prev-' + target);
+    if (!prev) return;
+    prev.src = src; prev.classList.remove('hidden');
+    prev.parentElement.querySelector('.upload-text').style.display = 'none';
+    // Show BG removal button
+    const bgrBtn = prev.closest('.form-group').querySelector('.bgr-btn');
+    if (bgrBtn) bgrBtn.style.display = '';
+  }
+  function hidePreview(target) {
+    const prev = document.getElementById('prev-' + target);
+    if (!prev) return;
+    prev.classList.add('hidden');
+    if (prev.parentElement.querySelector('.upload-text'))
+      prev.parentElement.querySelector('.upload-text').style.display = '';
+    const bgrBtn = prev.closest('.form-group')?.querySelector('.bgr-btn');
+    if (bgrBtn) bgrBtn.style.display = 'none';
+  }
+
+  document.querySelectorAll('.img-upload input[type=file]').forEach(input => {
+    input.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const target = input.dataset.target;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        imageData[target] = ev.target.result;
+        showPreview(target, ev.target.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  // =====================
+  // Background Removal Tool
+  // =====================
+  let bgrTarget = null;
+  let bgrOriginalData = null;
+  let bgrCanvas, bgrCtx;
+
+  document.querySelectorAll('.bgr-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      bgrTarget = btn.dataset.bgr;
+      const src = imageData[bgrTarget];
+      if (!src) return showToast('Upload an image first', 'error');
+      openBgrTool(src);
+    });
+  });
+
+  function openBgrTool(src) {
+    const modal = document.getElementById('bgr-modal');
+    bgrCanvas = document.getElementById('bgr-canvas');
+    bgrCtx = bgrCanvas.getContext('2d', { willReadFrequently: true });
+
+    const img = new Image();
+    img.onload = () => {
+      // Scale down if too large
+      let w = img.width, h = img.height;
+      const maxDim = 600;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      bgrCanvas.width = w;
+      bgrCanvas.height = h;
+      bgrCtx.drawImage(img, 0, 0, w, h);
+      bgrOriginalData = bgrCtx.getImageData(0, 0, w, h);
+      modal.classList.add('open');
+    };
+    img.src = src;
+  }
+
+  // Click to remove color
+  document.getElementById('bgr-canvas').addEventListener('click', e => {
+    if (!bgrOriginalData) return;
+    const rect = bgrCanvas.getBoundingClientRect();
+    const scaleX = bgrCanvas.width / rect.width;
+    const scaleY = bgrCanvas.height / rect.height;
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+    const tolerance = parseInt(document.getElementById('bgr-tolerance').value);
+    floodFillRemove(x, y, tolerance);
+  });
+
+  document.getElementById('bgr-tolerance').addEventListener('input', e => {
+    document.getElementById('bgr-tol-val').textContent = e.target.value;
+  });
+
+  document.getElementById('bgr-reset').addEventListener('click', () => {
+    if (bgrOriginalData) {
+      bgrCtx.putImageData(bgrOriginalData, 0, 0);
+    }
+  });
+
+  function floodFillRemove(startX, startY, tolerance) {
+    const imgData = bgrCtx.getImageData(0, 0, bgrCanvas.width, bgrCanvas.height);
+    const data = imgData.data;
+    const w = bgrCanvas.width, h = bgrCanvas.height;
+    const idx = (startY * w + startX) * 4;
+    const targetR = data[idx], targetG = data[idx+1], targetB = data[idx+2];
+
+    if (data[idx+3] === 0) return; // already transparent
+
+    const visited = new Uint8Array(w * h);
+    const stack = [startX, startY];
+    const tolSq = tolerance * tolerance;
+
+    function colorMatch(i) {
+      const dr = data[i] - targetR;
+      const dg = data[i+1] - targetG;
+      const db = data[i+2] - targetB;
+      return (dr*dr + dg*dg + db*db) <= tolSq * 3 && data[i+3] > 0;
+    }
+
+    while (stack.length > 0) {
+      const cy = stack.pop();
+      const cx = stack.pop();
+      const pos = cy * w + cx;
+      if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+      if (visited[pos]) continue;
+      const pi = pos * 4;
+      if (!colorMatch(pi)) continue;
+      visited[pos] = 1;
+      data[pi+3] = 0; // make transparent
+      stack.push(cx+1, cy, cx-1, cy, cx, cy+1, cx, cy-1);
+    }
+
+    bgrCtx.putImageData(imgData, 0, 0);
+  }
+
+  document.getElementById('bgr-apply').addEventListener('click', () => {
+    const dataUrl = bgrCanvas.toDataURL('image/png');
+    imageData[bgrTarget] = dataUrl;
+    showPreview(bgrTarget, dataUrl);
+    document.getElementById('bgr-modal').classList.remove('open');
+    showToast('Background removed & applied');
+  });
+
+  // Close BGR modal
+  document.getElementById('bgr-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+  });
+
+  // =====================
+  // User Designs
+  // =====================
+  function renderDesigns() {
+    const designs = DB.Designs.getAll().reverse();
+    const container = document.getElementById('admin-designs');
+    const empty = document.getElementById('designs-empty');
+    if (designs.length === 0) { empty.classList.remove('hidden'); container.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    container.innerHTML = '';
+    designs.forEach(d => {
+      const carrier = DB.Carriers.getById(d.carrierId);
+      const allPatches = [...(d.frontPatches||[]), ...(d.backPatches||[])];
+      const thumbSrc = d.thumbnail || (carrier ? carrier.frontImage : '');
+      const date = new Date(d.createdAt).toLocaleDateString();
+      container.innerHTML += `<div class="dv-card">
+        <img src="${thumbSrc}" alt="">
+        <div class="body">
+          <strong>${carrier ? carrier.name : 'Unknown'}</strong><br>
+          ${allPatches.length} patches · ${date}<br>
+          <span style="color:var(--coral);font-weight:600">${fmtPrice(DB.getDesignPrice(d))}</span>
+        </div>
+      </div>`;
+    });
+  }
+
+  // =====================
+  // Orders Table
+  // =====================
+  function renderOrderTable() {
+    const orders = DB.Orders.getAll().reverse();
+    const tbody = document.querySelector('#order-table tbody');
+    tbody.innerHTML = '';
+    const statusBadge = { pending:'badge-pending', paid:'badge-paid', shipped:'badge-shipped', done:'badge-done' };
+    orders.forEach(o => {
+      const date = new Date(o.createdAt).toLocaleDateString();
+      const addr = DB.Addresses.getById(o.addressId);
+      tbody.innerHTML += `<tr>
+        <td><strong>#${o.id.toUpperCase().slice(0,8)}</strong></td>
+        <td>${date}</td>
+        <td>${addr ? addr.name : 'N/A'}</td>
+        <td>${(o.items||[]).length} item(s)</td>
+        <td>${fmtPrice(o.total)}</td>
+        <td><span class="badge ${statusBadge[o.status]||''}">${o.status}</span></td>
+        <td><button class="btn btn-sm btn-outline" data-update-status="${o.id}">Update</button></td>
+      </tr>`;
+    });
+    tbody.querySelectorAll('[data-update-status]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const o = DB.Orders.getById(btn.dataset.updateStatus);
+        document.getElementById('status-order-id').value = o.id;
+        document.getElementById('status-select').value = o.status;
+        document.getElementById('status-modal').classList.add('open');
+      }));
+  }
+
+  // ---- Order status modal ----
+  document.getElementById('status-cancel').addEventListener('click', () =>
+    document.getElementById('status-modal').classList.remove('open'));
+  document.getElementById('status-save').addEventListener('click', () => {
+    const id = document.getElementById('status-order-id').value;
+    const status = document.getElementById('status-select').value;
+    DB.Orders.update(id, { status });
+    document.getElementById('status-modal').classList.remove('open');
+    renderOrderTable();
+    renderDashboard();
+    showToast('Order status updated');
+  });
+
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => {
+      if (e.target === m) m.classList.remove('open');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PatchCraft — Design Your Own Patch Art</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav id="main-nav"></nav>
+
+<!-- Hero -->
+<section class="hero">
+  <h1>Make It Yours</h1>
+  <p>Choose a carrier, pick your favorite patches, drag &amp; drop to create a one-of-a-kind piece that's uniquely you.</p>
+  <a href="create.html" class="btn btn-primary btn-lg">Start Creating</a>
+</section>
+
+<!-- How it works -->
+<section class="section">
+  <div class="container">
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-subtitle">Three simple steps to your custom creation</p>
+    <div class="grid-3" id="how-it-works">
+      <div class="card" style="cursor:default">
+        <div style="padding:40px 24px;text-align:center;background:var(--blush)">
+          <div style="font-size:2.5rem;margin-bottom:12px">1</div>
+          <div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:var(--coral);display:flex;align-items:center;justify-content:center">
+            <svg width="36" height="36" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="6" width="28" height="24" rx="4"/><path d="M4 14h28"/></svg>
+          </div>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="card-title">Pick a Carrier</h3>
+          <p class="card-subtitle">Passport holder, pencil case, laptop sleeve, and more</p>
+        </div>
+      </div>
+      <div class="card" style="cursor:default">
+        <div style="padding:40px 24px;text-align:center;background:var(--blush)">
+          <div style="font-size:2.5rem;margin-bottom:12px">2</div>
+          <div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:var(--lavender);display:flex;align-items:center;justify-content:center">
+            <svg width="36" height="36" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M6 30L18 6l12 24"/><circle cx="26" cy="12" r="6"/></svg>
+          </div>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="card-title">Add Patches</h3>
+          <p class="card-subtitle">Drag, drop, and rotate — design both sides freely</p>
+        </div>
+      </div>
+      <div class="card" style="cursor:default">
+        <div style="padding:40px 24px;text-align:center;background:var(--blush)">
+          <div style="font-size:2.5rem;margin-bottom:12px">3</div>
+          <div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:var(--sage);display:flex;align-items:center;justify-content:center">
+            <svg width="36" height="36" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M6 18h8l4 12 8-24 4 12h8"/></svg>
+          </div>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="card-title">Order It</h3>
+          <p class="card-subtitle">Save your design, add to cart, and we'll make it real</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Carriers preview -->
+<section class="section" style="background:var(--white)">
+  <div class="container">
+    <h2 class="section-title">Our Carriers</h2>
+    <p class="section-subtitle">Quality essentials waiting for your personal touch</p>
+    <div class="grid-3" id="carrier-grid"></div>
+    <div class="text-center mt-24">
+      <a href="create.html" class="btn btn-secondary">Browse All &amp; Start Designing</a>
+    </div>
+  </div>
+</section>
+
+<!-- Patches preview -->
+<section class="section">
+  <div class="container">
+    <h2 class="section-title">Popular Patches</h2>
+    <p class="section-subtitle">Mix florals, animals, letters, and more</p>
+    <div class="grid-4" id="patch-grid"></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section" style="background:linear-gradient(135deg, var(--coral) 0%, var(--terracotta) 100%);color:var(--white);text-align:center">
+  <div class="container">
+    <h2 style="font-family:var(--font-display);font-size:2.2rem;margin-bottom:12px">Ready to Create?</h2>
+    <p style="opacity:0.9;max-width:400px;margin:0 auto 28px">Your one-of-a-kind piece is just a few clicks away.</p>
+    <a href="create.html" class="btn btn-lg" style="background:var(--white);color:var(--coral)">Let's Go</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>&copy; 2026 PatchCraft. Handmade with love.</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script>
+  renderNav('home');
+
+  // Carriers
+  const cGrid = document.getElementById('carrier-grid');
+  DB.Carriers.getActive().forEach(c => {
+    cGrid.innerHTML += `<div class="card">
+      <img class="card-img" src="${c.frontImage}" alt="${c.name}" style="aspect-ratio:auto;padding:20px;object-fit:contain;background:var(--blush)">
+      <div class="card-body">
+        <div class="card-title">${c.name}</div>
+        <div class="card-subtitle">${c.nameZh || ''} · ${c.realWidth}×${c.realHeight}mm</div>
+        <div class="card-price">${fmtPrice(c.price)}</div>
+      </div>
+    </div>`;
+  });
+
+  // Patches
+  const pGrid = document.getElementById('patch-grid');
+  DB.Patches.getActive().slice(0, 8).forEach(p => {
+    pGrid.innerHTML += `<div class="card">
+      <div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--blush);padding:16px">
+        <img src="${p.image}" alt="${p.name}" style="max-width:80%;max-height:80%;object-fit:contain">
+      </div>
+      <div class="card-body">
+        <div class="card-title">${p.name}</div>
+        <div class="card-subtitle">${p.nameZh || ''} · ${p.realWidth}×${p.realHeight}mm</div>
+        <div class="card-price">${fmtPrice(p.price)}</div>
+      </div>
+    </div>`;
+  });
+</script>
+</body>
+</html>
