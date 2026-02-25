@@ -49,17 +49,41 @@
     margin-bottom: 8px;
   }
 
-  /* BG removal tool */
-  .bgr-tool { margin-top: 12px; }
-  .bgr-controls {
-    display: flex; gap: 12px; align-items: center; margin: 12px 0; flex-wrap: wrap;
+  /* Image Editor Tool */
+  .ied-toolbar {
+    display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;
   }
-  .bgr-controls label { font-size: 0.85rem; font-weight: 500; }
-  .bgr-controls input[type=range] { width: 120px; }
-  .bgr-preview {
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
+  .ied-toolbar button {
+    padding: 6px 12px; border: 2px solid var(--border); border-radius: 6px;
+    background: var(--white); cursor: pointer; font-size: 0.8rem; font-weight: 500;
+    transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+  }
+  .ied-toolbar button:hover { border-color: var(--coral); color: var(--coral); }
+  .ied-toolbar button.active { border-color: var(--coral); background: var(--coral); color: var(--white); }
+  .ied-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 6px; }
+  .ied-controls {
+    display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;
+    font-size: 0.8rem;
+  }
+  .ied-controls label { font-weight: 500; }
+  .ied-controls input[type=range] { width: 100px; }
+  .ied-preview {
+    position: relative; border: 1px solid var(--border); border-radius: var(--radius-sm);
     overflow: hidden; display: inline-block;
     background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+  }
+  .ied-preview canvas { display: block; max-width: 100%; }
+  /* Crop overlay */
+  .crop-overlay {
+    position: absolute; inset: 0; display: none; cursor: crosshair;
+  }
+  .crop-overlay.active { display: block; }
+  .crop-rect {
+    position: absolute; border: 2px dashed var(--coral);
+    background: rgba(232,131,93,0.1);
+  }
+  .crop-dim {
+    background: rgba(0,0,0,0.5); position: absolute;
   }
 
   /* Design viewer */
@@ -228,20 +252,37 @@
   </div>
 </div>
 
-<!-- Background Removal Modal -->
+<!-- Image Editor Modal -->
 <div class="modal-overlay" id="bgr-modal">
-  <div class="modal-box" style="max-width:700px">
-    <h3 class="modal-title">Background Removal Tool</h3>
-    <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px">Click on the area you want to remove. Adjust tolerance to refine.</p>
-    <div class="bgr-controls">
-      <label>Tolerance:</label>
-      <input type="range" id="bgr-tolerance" min="1" max="100" value="30">
-      <span id="bgr-tol-val">30</span>
-      <button class="btn btn-sm btn-outline" id="bgr-reset">Reset</button>
-      <button class="btn btn-sm btn-primary" id="bgr-apply">Apply & Use</button>
+  <div class="modal-box" style="max-width:780px">
+    <h3 class="modal-title">Image Editor</h3>
+
+    <!-- Tool bar -->
+    <div class="ied-toolbar">
+      <button class="active" data-tool="wand" title="Magic Wand — click to remove background">&#9733; Wand</button>
+      <button data-tool="eraser" title="Eraser — paint to erase">&#9998; Eraser</button>
+      <div class="sep"></div>
+      <button data-tool="rotate-ccw" title="Rotate 90° left">&#8634; Rotate L</button>
+      <button data-tool="rotate-cw" title="Rotate 90° right">&#8635; Rotate R</button>
+      <div class="sep"></div>
+      <button data-tool="crop" title="Crop — drag to select area">&#9986; Crop</button>
+      <div class="sep"></div>
+      <button data-tool="reset" title="Reset to original">Reset</button>
+      <div style="flex:1"></div>
+      <button data-tool="apply" style="background:var(--coral);color:white;border-color:var(--coral)">Apply &amp; Use</button>
     </div>
-    <div class="bgr-preview">
-      <canvas id="bgr-canvas" style="max-width:100%;cursor:crosshair"></canvas>
+
+    <!-- Context controls (change by tool) -->
+    <div class="ied-controls" id="ied-controls">
+      <label>Tolerance:</label>
+      <input type="range" id="ied-tolerance" min="1" max="100" value="30">
+      <span id="ied-tol-val">30</span>
+    </div>
+
+    <!-- Canvas -->
+    <div class="ied-preview" id="ied-preview">
+      <canvas id="bgr-canvas"></canvas>
+      <div class="crop-overlay" id="crop-overlay"></div>
     </div>
   </div>
 </div>
@@ -542,112 +583,266 @@
   });
 
   // =====================
-  // Background Removal Tool
+  // Image Editor Tool
   // =====================
   let bgrTarget = null;
-  let bgrOriginalData = null;
+  let bgrOriginalData = null;   // original ImageData for reset
   let bgrCanvas, bgrCtx;
+  let iedTool = 'wand';        // current tool
+  let iedErasing = false;       // eraser active flag
 
   document.querySelectorAll('.bgr-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       bgrTarget = btn.dataset.bgr;
       const src = imageData[bgrTarget];
       if (!src) return showToast('Upload an image first', 'error');
-      openBgrTool(src);
+      openImageEditor(src);
     });
   });
 
-  function openBgrTool(src) {
+  function openImageEditor(src) {
     const modal = document.getElementById('bgr-modal');
     bgrCanvas = document.getElementById('bgr-canvas');
     bgrCtx = bgrCanvas.getContext('2d', { willReadFrequently: true });
+    iedTool = 'wand';
+    updateIedToolbar();
 
     const img = new Image();
     img.onload = () => {
-      // Scale down if too large
       let w = img.width, h = img.height;
       const maxDim = 600;
       if (w > maxDim || h > maxDim) {
-        const scale = maxDim / Math.max(w, h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+        const sc = maxDim / Math.max(w, h);
+        w = Math.round(w * sc); h = Math.round(h * sc);
       }
-      bgrCanvas.width = w;
-      bgrCanvas.height = h;
+      bgrCanvas.width = w; bgrCanvas.height = h;
       bgrCtx.drawImage(img, 0, 0, w, h);
       bgrOriginalData = bgrCtx.getImageData(0, 0, w, h);
+      bgrCanvas.style.cursor = 'crosshair';
       modal.classList.add('open');
     };
     img.src = src;
   }
 
-  // Click to remove color
-  document.getElementById('bgr-canvas').addEventListener('click', e => {
-    if (!bgrOriginalData) return;
-    const rect = bgrCanvas.getBoundingClientRect();
-    const scaleX = bgrCanvas.width / rect.width;
-    const scaleY = bgrCanvas.height / rect.height;
-    const x = Math.round((e.clientX - rect.left) * scaleX);
-    const y = Math.round((e.clientY - rect.top) * scaleY);
-    const tolerance = parseInt(document.getElementById('bgr-tolerance').value);
-    floodFillRemove(x, y, tolerance);
+  // Tool switching
+  function updateIedToolbar() {
+    document.querySelectorAll('.ied-toolbar button[data-tool]').forEach(b => {
+      if (['wand','eraser','crop'].includes(b.dataset.tool))
+        b.classList.toggle('active', b.dataset.tool === iedTool);
+    });
+    const controls = document.getElementById('ied-controls');
+    const cropOverlay = document.getElementById('crop-overlay');
+    cropOverlay.classList.remove('active');
+    cropOverlay.innerHTML = '';
+
+    if (iedTool === 'wand') {
+      controls.innerHTML = `<label>Tolerance:</label><input type="range" id="ied-tolerance" min="1" max="100" value="30"><span id="ied-tol-val">30</span>`;
+      controls.querySelector('#ied-tolerance').addEventListener('input', e => {
+        document.getElementById('ied-tol-val').textContent = e.target.value;
+      });
+      bgrCanvas.style.cursor = 'crosshair';
+    } else if (iedTool === 'eraser') {
+      controls.innerHTML = `<label>Brush Size:</label><input type="range" id="ied-brush" min="2" max="60" value="16"><span id="ied-brush-val">16px</span>`;
+      controls.querySelector('#ied-brush').addEventListener('input', e => {
+        document.getElementById('ied-brush-val').textContent = e.target.value + 'px';
+      });
+      bgrCanvas.style.cursor = 'cell';
+    } else if (iedTool === 'crop') {
+      controls.innerHTML = `<span style="color:var(--text-light)">Drag on image to select crop area, then click "Apply Crop"</span>
+        <button class="btn btn-sm btn-primary" id="ied-apply-crop" disabled>Apply Crop</button>`;
+      cropOverlay.classList.add('active');
+      bgrCanvas.style.cursor = 'default';
+      setupCropTool();
+    } else {
+      controls.innerHTML = '';
+    }
+  }
+
+  document.querySelectorAll('.ied-toolbar button[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tool = btn.dataset.tool;
+      if (tool === 'rotate-cw') { rotateCanvas(90); return; }
+      if (tool === 'rotate-ccw') { rotateCanvas(-90); return; }
+      if (tool === 'reset') {
+        if (bgrOriginalData) bgrCtx.putImageData(bgrOriginalData, 0, 0);
+        return;
+      }
+      if (tool === 'apply') {
+        const dataUrl = bgrCanvas.toDataURL('image/png');
+        imageData[bgrTarget] = dataUrl;
+        showPreview(bgrTarget, dataUrl);
+        document.getElementById('bgr-modal').classList.remove('open');
+        showToast('Image updated');
+        return;
+      }
+      iedTool = tool;
+      updateIedToolbar();
+    });
   });
 
-  document.getElementById('bgr-tolerance').addEventListener('input', e => {
-    document.getElementById('bgr-tol-val').textContent = e.target.value;
-  });
-
-  document.getElementById('bgr-reset').addEventListener('click', () => {
-    if (bgrOriginalData) {
-      bgrCtx.putImageData(bgrOriginalData, 0, 0);
+  // ---- Magic Wand (flood fill) ----
+  bgrCanvas = document.getElementById('bgr-canvas');
+  bgrCanvas.addEventListener('mousedown', e => {
+    if (iedTool === 'wand') {
+      const rect = bgrCanvas.getBoundingClientRect();
+      const sx = bgrCanvas.width / rect.width, sy = bgrCanvas.height / rect.height;
+      const x = Math.round((e.clientX - rect.left) * sx);
+      const y = Math.round((e.clientY - rect.top) * sy);
+      const tol = parseInt(document.getElementById('ied-tolerance')?.value || '30');
+      floodFillRemove(x, y, tol);
+    } else if (iedTool === 'eraser') {
+      iedErasing = true;
+      eraseAt(e);
     }
   });
+  bgrCanvas.addEventListener('mousemove', e => {
+    if (iedTool === 'eraser' && iedErasing) eraseAt(e);
+  });
+  document.addEventListener('mouseup', () => { iedErasing = false; });
+
+  // Touch eraser
+  bgrCanvas.addEventListener('touchstart', e => {
+    if (iedTool === 'eraser') { iedErasing = true; eraseAt(e.touches[0]); e.preventDefault(); }
+    if (iedTool === 'wand') {
+      const t = e.touches[0];
+      const rect = bgrCanvas.getBoundingClientRect();
+      const sx = bgrCanvas.width / rect.width, sy = bgrCanvas.height / rect.height;
+      floodFillRemove(Math.round((t.clientX-rect.left)*sx), Math.round((t.clientY-rect.top)*sy),
+        parseInt(document.getElementById('ied-tolerance')?.value||'30'));
+      e.preventDefault();
+    }
+  }, { passive: false });
+  bgrCanvas.addEventListener('touchmove', e => {
+    if (iedTool === 'eraser' && iedErasing) { eraseAt(e.touches[0]); e.preventDefault(); }
+  }, { passive: false });
+  bgrCanvas.addEventListener('touchend', () => { iedErasing = false; });
+
+  function eraseAt(e) {
+    const rect = bgrCanvas.getBoundingClientRect();
+    const sx = bgrCanvas.width / rect.width, sy = bgrCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * sx;
+    const y = (e.clientY - rect.top) * sy;
+    const r = parseInt(document.getElementById('ied-brush')?.value || '16');
+    bgrCtx.save();
+    bgrCtx.globalCompositeOperation = 'destination-out';
+    bgrCtx.beginPath();
+    bgrCtx.arc(x, y, r, 0, Math.PI * 2);
+    bgrCtx.fill();
+    bgrCtx.restore();
+  }
 
   function floodFillRemove(startX, startY, tolerance) {
     const imgData = bgrCtx.getImageData(0, 0, bgrCanvas.width, bgrCanvas.height);
     const data = imgData.data;
     const w = bgrCanvas.width, h = bgrCanvas.height;
     const idx = (startY * w + startX) * 4;
-    const targetR = data[idx], targetG = data[idx+1], targetB = data[idx+2];
-
-    if (data[idx+3] === 0) return; // already transparent
-
+    const tR = data[idx], tG = data[idx+1], tB = data[idx+2];
+    if (data[idx+3] === 0) return;
     const visited = new Uint8Array(w * h);
     const stack = [startX, startY];
     const tolSq = tolerance * tolerance;
-
-    function colorMatch(i) {
-      const dr = data[i] - targetR;
-      const dg = data[i+1] - targetG;
-      const db = data[i+2] - targetB;
-      return (dr*dr + dg*dg + db*db) <= tolSq * 3 && data[i+3] > 0;
+    function match(i) {
+      const dr=data[i]-tR, dg=data[i+1]-tG, db=data[i+2]-tB;
+      return (dr*dr+dg*dg+db*db) <= tolSq*3 && data[i+3]>0;
     }
-
     while (stack.length > 0) {
-      const cy = stack.pop();
-      const cx = stack.pop();
+      const cy = stack.pop(), cx = stack.pop();
       const pos = cy * w + cx;
-      if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+      if (cx<0||cx>=w||cy<0||cy>=h) continue;
       if (visited[pos]) continue;
       const pi = pos * 4;
-      if (!colorMatch(pi)) continue;
+      if (!match(pi)) continue;
       visited[pos] = 1;
-      data[pi+3] = 0; // make transparent
-      stack.push(cx+1, cy, cx-1, cy, cx, cy+1, cx, cy-1);
+      data[pi+3] = 0;
+      stack.push(cx+1,cy, cx-1,cy, cx,cy+1, cx,cy-1);
     }
-
     bgrCtx.putImageData(imgData, 0, 0);
   }
 
-  document.getElementById('bgr-apply').addEventListener('click', () => {
-    const dataUrl = bgrCanvas.toDataURL('image/png');
-    imageData[bgrTarget] = dataUrl;
-    showPreview(bgrTarget, dataUrl);
-    document.getElementById('bgr-modal').classList.remove('open');
-    showToast('Background removed & applied');
-  });
+  // ---- Rotate ----
+  function rotateCanvas(deg) {
+    const w = bgrCanvas.width, h = bgrCanvas.height;
+    const imgData = bgrCtx.getImageData(0, 0, w, h);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = w; tempCanvas.height = h;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.putImageData(imgData, 0, 0);
 
-  // Close BGR modal
+    // Swap dimensions for 90/-90
+    if (Math.abs(deg) === 90) {
+      bgrCanvas.width = h; bgrCanvas.height = w;
+    }
+    bgrCtx.clearRect(0, 0, bgrCanvas.width, bgrCanvas.height);
+    bgrCtx.save();
+    bgrCtx.translate(bgrCanvas.width / 2, bgrCanvas.height / 2);
+    bgrCtx.rotate(deg * Math.PI / 180);
+    bgrCtx.drawImage(tempCanvas, -w/2, -h/2);
+    bgrCtx.restore();
+  }
+
+  // ---- Crop ----
+  function setupCropTool() {
+    const overlay = document.getElementById('crop-overlay');
+    const applyCropBtn = document.getElementById('ied-apply-crop');
+    let cropRect = null;
+    let startX, startY;
+
+    overlay.addEventListener('mousedown', e => {
+      const rect = overlay.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      cropRect = { x: startX, y: startY, w: 0, h: 0 };
+      overlay.innerHTML = '';
+
+      function onMove(e) {
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        cropRect.x = Math.min(startX, mx);
+        cropRect.y = Math.min(startY, my);
+        cropRect.w = Math.abs(mx - startX);
+        cropRect.h = Math.abs(my - startY);
+        drawCropRect(overlay, cropRect, rect.width, rect.height);
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (cropRect && cropRect.w > 5 && cropRect.h > 5) {
+          applyCropBtn.disabled = false;
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    applyCropBtn?.addEventListener('click', () => {
+      if (!cropRect || cropRect.w < 5) return;
+      const cRect = overlay.getBoundingClientRect();
+      const sx = bgrCanvas.width / cRect.width;
+      const sy = bgrCanvas.height / cRect.height;
+      const cx = Math.round(cropRect.x * sx);
+      const cy = Math.round(cropRect.y * sy);
+      const cw = Math.round(cropRect.w * sx);
+      const ch = Math.round(cropRect.h * sy);
+      const cropped = bgrCtx.getImageData(cx, cy, cw, ch);
+      bgrCanvas.width = cw; bgrCanvas.height = ch;
+      bgrCtx.putImageData(cropped, 0, 0);
+      overlay.innerHTML = '';
+      overlay.classList.remove('active');
+      iedTool = 'wand';
+      updateIedToolbar();
+      showToast('Cropped');
+    });
+  }
+
+  function drawCropRect(overlay, cr, ow, oh) {
+    overlay.innerHTML = `
+      <div class="crop-dim" style="top:0;left:0;width:100%;height:${cr.y}px"></div>
+      <div class="crop-dim" style="top:${cr.y+cr.h}px;left:0;width:100%;bottom:0;height:${oh-cr.y-cr.h}px"></div>
+      <div class="crop-dim" style="top:${cr.y}px;left:0;width:${cr.x}px;height:${cr.h}px"></div>
+      <div class="crop-dim" style="top:${cr.y}px;right:0;width:${ow-cr.x-cr.w}px;height:${cr.h}px;left:${cr.x+cr.w}px"></div>
+      <div class="crop-rect" style="left:${cr.x}px;top:${cr.y}px;width:${cr.w}px;height:${cr.h}px"></div>`;
+  }
+
+  // Close editor modal
   document.getElementById('bgr-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
   });
