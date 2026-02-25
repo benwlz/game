@@ -86,6 +86,20 @@
     background: rgba(0,0,0,0.5); position: absolute;
   }
 
+  /* Batch action buttons */
+  .batch-actions {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .batch-actions .btn { font-size: 0.8rem; padding: 5px 12px; }
+  .batch-actions input[type=file] { display: none; }
+  .batch-bar {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--blush); border: 1px solid var(--coral);
+    border-radius: var(--radius-sm); padding: 8px 14px; margin-bottom: 16px;
+  }
+  .batch-bar .batch-count { font-weight: 600; font-size: 0.85rem; color: var(--coral); }
+  .batch-bar .btn { font-size: 0.8rem; padding: 4px 12px; }
+
   /* Design viewer */
   .design-viewer { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
   .dv-card {
@@ -131,7 +145,12 @@
     <section id="sec-carriers" class="hidden">
       <div class="admin-header">
         <h2>Carriers</h2>
-        <button class="btn btn-primary btn-sm" id="btn-add-carrier">+ Add Carrier</button>
+        <div class="batch-actions">
+          <button class="btn btn-outline btn-sm" id="btn-export-carriers">Export JSON</button>
+          <button class="btn btn-outline btn-sm" id="btn-import-carriers-trigger">Import JSON</button>
+          <input type="file" id="btn-import-carriers" accept=".json">
+          <button class="btn btn-primary btn-sm" id="btn-add-carrier">+ Add Carrier</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="styled" id="carrier-table">
@@ -145,7 +164,12 @@
     <section id="sec-patches" class="hidden">
       <div class="admin-header">
         <h2>Patches</h2>
-        <button class="btn btn-primary btn-sm" id="btn-add-patch">+ Add Patch</button>
+        <div class="batch-actions">
+          <button class="btn btn-outline btn-sm" id="btn-export-patches">Export JSON</button>
+          <button class="btn btn-outline btn-sm" id="btn-import-patches-trigger">Import JSON</button>
+          <input type="file" id="btn-import-patches" accept=".json">
+          <button class="btn btn-primary btn-sm" id="btn-add-patch">+ Add Patch</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="styled" id="patch-table">
@@ -157,17 +181,39 @@
 
     <!-- User Designs -->
     <section id="sec-designs" class="hidden">
-      <div class="admin-header"><h2>User Designs</h2></div>
+      <div class="admin-header">
+        <h2>User Designs</h2>
+        <div class="batch-actions">
+          <button class="btn btn-outline btn-sm" id="btn-export-designs">Export JSON</button>
+        </div>
+      </div>
       <div class="design-viewer" id="admin-designs"></div>
       <div id="designs-empty" class="empty-state hidden"><div class="icon">&#127912;</div><p>No designs yet</p></div>
     </section>
 
     <!-- Orders -->
     <section id="sec-orders" class="hidden">
-      <div class="admin-header"><h2>All Orders</h2></div>
+      <div class="admin-header">
+        <h2>All Orders</h2>
+        <div class="batch-actions">
+          <button class="btn btn-outline btn-sm" id="btn-export-orders">Export JSON</button>
+        </div>
+      </div>
+      <div class="batch-bar hidden" id="orders-batch-bar">
+        <span class="batch-count" id="orders-sel-count">0 selected</span>
+        <select class="form-control" id="batch-status-select" style="width:auto;padding:4px 8px;font-size:0.8rem">
+          <option value="">Set Status...</option>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="shipped">Shipped</option>
+          <option value="done">Completed</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="btn-batch-status" disabled>Apply Status</button>
+        <button class="btn btn-outline btn-sm" id="btn-batch-deselect">Deselect All</button>
+      </div>
       <div class="table-wrap">
         <table class="styled" id="order-table">
-          <thead><tr><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th style="width:36px"><input type="checkbox" id="order-select-all"></th><th>Order ID</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -876,15 +922,34 @@
   // =====================
   // Orders Table
   // =====================
+  let selectedOrders = new Set();
+
+  function updateOrderBatchBar() {
+    const bar = document.getElementById('orders-batch-bar');
+    const count = selectedOrders.size;
+    if (count > 0) {
+      bar.classList.remove('hidden');
+      document.getElementById('orders-sel-count').textContent = count + ' selected';
+    } else {
+      bar.classList.add('hidden');
+    }
+    document.getElementById('batch-status-select').value = '';
+    document.getElementById('btn-batch-status').disabled = true;
+  }
+
   function renderOrderTable() {
     const orders = DB.Orders.getAll().reverse();
     const tbody = document.querySelector('#order-table tbody');
     tbody.innerHTML = '';
     const statusBadge = { pending:'badge-pending', paid:'badge-paid', shipped:'badge-shipped', done:'badge-done' };
+    // Reset select-all checkbox
+    document.getElementById('order-select-all').checked = false;
     orders.forEach(o => {
       const date = new Date(o.createdAt).toLocaleDateString();
       const addr = DB.Addresses.getById(o.addressId);
+      const checked = selectedOrders.has(o.id) ? 'checked' : '';
       tbody.innerHTML += `<tr>
+        <td><input type="checkbox" class="order-row-cb" data-order-id="${o.id}" ${checked}></td>
         <td><strong>#${o.id.toUpperCase().slice(0,8)}</strong></td>
         <td>${date}</td>
         <td>${addr ? addr.name : 'N/A'}</td>
@@ -894,6 +959,13 @@
         <td><button class="btn btn-sm btn-outline" data-update-status="${o.id}">Update</button></td>
       </tr>`;
     });
+    // Checkbox events
+    tbody.querySelectorAll('.order-row-cb').forEach(cb =>
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedOrders.add(cb.dataset.orderId);
+        else selectedOrders.delete(cb.dataset.orderId);
+        updateOrderBatchBar();
+      }));
     tbody.querySelectorAll('[data-update-status]').forEach(btn =>
       btn.addEventListener('click', () => {
         const o = DB.Orders.getById(btn.dataset.updateStatus);
@@ -901,6 +973,7 @@
         document.getElementById('status-select').value = o.status;
         document.getElementById('status-modal').classList.add('open');
       }));
+    updateOrderBatchBar();
   }
 
   // ---- Order status modal ----
@@ -921,6 +994,151 @@
     m.addEventListener('click', e => {
       if (e.target === m) m.classList.remove('open');
     });
+  });
+
+  // =====================
+  // Batch Utilities
+  // =====================
+  function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importJSON(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try { resolve(JSON.parse(e.target.result)); }
+        catch { reject(new Error('Invalid JSON file')); }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  }
+
+  // ---- Carriers Batch ----
+  document.getElementById('btn-export-carriers').addEventListener('click', () => {
+    const carriers = DB.Carriers.getAll();
+    if (carriers.length === 0) return showToast('No carriers to export', 'error');
+    downloadJSON(carriers, 'patchcraft-carriers.json');
+    showToast(`Exported ${carriers.length} carriers`);
+  });
+
+  document.getElementById('btn-import-carriers-trigger').addEventListener('click', () => {
+    document.getElementById('btn-import-carriers').click();
+  });
+  document.getElementById('btn-import-carriers').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = await importJSON(file);
+      const items = Array.isArray(data) ? data : [data];
+      let added = 0;
+      items.forEach(item => {
+        if (!item.name || !item.realWidth || !item.realHeight) return;
+        DB.Carriers.add({
+          name: item.name, nameZh: item.nameZh || '',
+          frontImage: item.frontImage || '', backImage: item.backImage || '',
+          realWidth: item.realWidth, realHeight: item.realHeight,
+          price: item.price || 0, color: item.color || '',
+          patchArea: item.patchArea || { x: 10, y: 10, w: item.realWidth - 20, h: item.realHeight - 20 },
+          backPatchArea: item.backPatchArea || item.patchArea || { x: 10, y: 10, w: item.realWidth - 20, h: item.realHeight - 20 },
+        });
+        added++;
+      });
+      renderCarrierTable();
+      showToast(`Imported ${added} carrier(s)`);
+    } catch (err) { showToast(err.message, 'error'); }
+    e.target.value = '';
+  });
+
+  // ---- Patches Batch ----
+  document.getElementById('btn-export-patches').addEventListener('click', () => {
+    const patches = DB.Patches.getAll();
+    if (patches.length === 0) return showToast('No patches to export', 'error');
+    downloadJSON(patches, 'patchcraft-patches.json');
+    showToast(`Exported ${patches.length} patches`);
+  });
+
+  document.getElementById('btn-import-patches-trigger').addEventListener('click', () => {
+    document.getElementById('btn-import-patches').click();
+  });
+  document.getElementById('btn-import-patches').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = await importJSON(file);
+      const items = Array.isArray(data) ? data : [data];
+      let added = 0;
+      items.forEach(item => {
+        if (!item.name || !item.realWidth || !item.realHeight) return;
+        DB.Patches.add({
+          name: item.name, nameZh: item.nameZh || '',
+          image: item.image || '',
+          realWidth: item.realWidth, realHeight: item.realHeight,
+          price: item.price || 0, color: item.color || '',
+          category: item.category || '',
+        });
+        added++;
+      });
+      renderPatchTable();
+      showToast(`Imported ${added} patch(es)`);
+    } catch (err) { showToast(err.message, 'error'); }
+    e.target.value = '';
+  });
+
+  // ---- Designs Batch Download ----
+  document.getElementById('btn-export-designs').addEventListener('click', () => {
+    const designs = DB.Designs.getAll();
+    if (designs.length === 0) return showToast('No designs to export', 'error');
+    downloadJSON(designs, 'patchcraft-designs.json');
+    showToast(`Exported ${designs.length} designs`);
+  });
+
+  // ---- Orders Batch Download + Status ----
+  document.getElementById('btn-export-orders').addEventListener('click', () => {
+    const orders = DB.Orders.getAll();
+    if (orders.length === 0) return showToast('No orders to export', 'error');
+    downloadJSON(orders, 'patchcraft-orders.json');
+    showToast(`Exported ${orders.length} orders`);
+  });
+
+  // Order checkbox selection
+  document.getElementById('order-select-all').addEventListener('change', e => {
+    const checked = e.target.checked;
+    document.querySelectorAll('.order-row-cb').forEach(cb => {
+      cb.checked = checked;
+      if (checked) selectedOrders.add(cb.dataset.orderId);
+      else selectedOrders.delete(cb.dataset.orderId);
+    });
+    updateOrderBatchBar();
+  });
+
+  document.getElementById('batch-status-select').addEventListener('change', e => {
+    document.getElementById('btn-batch-status').disabled = !e.target.value;
+  });
+
+  document.getElementById('btn-batch-status').addEventListener('click', () => {
+    const status = document.getElementById('batch-status-select').value;
+    if (!status || selectedOrders.size === 0) return;
+    selectedOrders.forEach(id => DB.Orders.update(id, { status }));
+    showToast(`Updated ${selectedOrders.size} order(s) to "${status}"`);
+    selectedOrders.clear();
+    updateOrderBatchBar();
+    renderOrderTable();
+    renderDashboard();
+  });
+
+  document.getElementById('btn-batch-deselect').addEventListener('click', () => {
+    selectedOrders.clear();
+    document.querySelectorAll('.order-row-cb').forEach(cb => cb.checked = false);
+    document.getElementById('order-select-all').checked = false;
+    updateOrderBatchBar();
   });
 })();
 </script>
