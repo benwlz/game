@@ -355,57 +355,12 @@
 
     const newP = { id: 'pp' + (++patchIdCounter), patchId, x: xMm, y: yMm, rotation };
 
-    // Collision check (mm)
-    const existing = currentPatches();
-    for (const ep of existing) {
-      const epData = DB.Patches.getById(ep.patchId);
-      if (!epData) continue;
-      if (collides(newP, patch, ep, epData)) {
-        showToast('Patches cannot overlap!', 'error');
-        return false;
-      }
-    }
-
     saveUndo();
+    const existing = currentPatches();
     existing.push(newP);
     setCurrentPatches(existing);
     selectedPlacedId = newP.id;
     renderPlacedPatches(); updatePrice();
-    return true;
-  }
-
-  // OBB collision (mm space)
-  function collides(a, aData, b, bData) {
-    const GAP = 1; // 1mm gap
-    return checkOBB(
-      { cx: a.x + aData.realWidth/2, cy: a.y + aData.realHeight/2, hw: aData.realWidth/2 + GAP, hh: aData.realHeight/2 + GAP, angle: a.rotation || 0 },
-      { cx: b.x + bData.realWidth/2, cy: b.y + bData.realHeight/2, hw: bData.realWidth/2 + GAP, hh: bData.realHeight/2 + GAP, angle: b.rotation || 0 }
-    );
-  }
-
-  function checkOBB(a, b) {
-    function corners(box) {
-      const c = Math.cos(box.angle * Math.PI / 180), s = Math.sin(box.angle * Math.PI / 180);
-      return [
-        { x: box.cx + c*box.hw - s*box.hh, y: box.cy + s*box.hw + c*box.hh },
-        { x: box.cx - c*box.hw - s*box.hh, y: box.cy - s*box.hw + c*box.hh },
-        { x: box.cx - c*box.hw + s*box.hh, y: box.cy - s*box.hw - c*box.hh },
-        { x: box.cx + c*box.hw + s*box.hh, y: box.cy + s*box.hw - c*box.hh },
-      ];
-    }
-    function axes(cs) {
-      return [{ x: cs[1].x-cs[0].x, y: cs[1].y-cs[0].y }, { x: cs[3].x-cs[0].x, y: cs[3].y-cs[0].y }];
-    }
-    function project(cs, ax) {
-      let mn = Infinity, mx = -Infinity;
-      for (const c of cs) { const p = c.x*ax.x + c.y*ax.y; mn = Math.min(mn, p); mx = Math.max(mx, p); }
-      return { min: mn, max: mx };
-    }
-    const cA = corners(a), cB = corners(b);
-    for (const ax of [...axes(cA), ...axes(cB)]) {
-      const pA = project(cA, ax), pB = project(cB, ax);
-      if (pA.max < pB.min || pB.max < pA.min) return false;
-    }
     return true;
   }
 
@@ -481,10 +436,7 @@
         ny = Math.max(zone.y, Math.min(ny, zone.y + zone.h - pd.realHeight));
       }
       // Collision
-      const others = currentPatches().filter(p => p.id !== pp.id);
-      let hit = false;
-      for (const ep of others) { const epd = DB.Patches.getById(ep.patchId); if (epd && collides({...pp, x:nx, y:ny}, pd, ep, epd)) { hit = true; break; } }
-      if (!hit && isInZone(nx, ny, pd.realWidth, pd.realHeight, pp.rotation||0)) {
+      if (isInZone(nx, ny, pd.realWidth, pd.realHeight, pp.rotation||0)) {
         pp.x = nx; pp.y = ny;
         const el = canvasArea.querySelector(`[data-pp-id="${pp.id}"]`);
         if (el) { el.style.left = (nx * scale) + 'px'; el.style.top = (ny * scale) + 'px'; }
@@ -510,10 +462,7 @@
         nx = Math.max(zone.x, Math.min(nx, zone.x + zone.w - pd.realWidth));
         ny = Math.max(zone.y, Math.min(ny, zone.y + zone.h - pd.realHeight));
       }
-      const others = currentPatches().filter(p => p.id !== pp.id);
-      let hit = false;
-      for (const ep of others) { const epd = DB.Patches.getById(ep.patchId); if (epd && collides({...pp, x:nx, y:ny}, pd, ep, epd)) { hit = true; break; } }
-      if (!hit && isInZone(nx, ny, pd.realWidth, pd.realHeight, pp.rotation||0)) {
+      if (isInZone(nx, ny, pd.realWidth, pd.realHeight, pp.rotation||0)) {
         pp.x = nx; pp.y = ny;
         const el = canvasArea.querySelector(`[data-pp-id="${pp.id}"]`);
         if (el) { el.style.left = (nx * scale) + 'px'; el.style.top = (ny * scale) + 'px'; }
@@ -537,10 +486,7 @@
       const a = Math.atan2(e.clientY - cyPx, e.clientX - cxPx);
       let nr = origRot + (a - startA) * 180 / Math.PI;
       nr = ((nr % 360) + 360) % 360;
-      const others = currentPatches().filter(p => p.id !== pp.id);
-      let hit = false;
-      for (const ep of others) { const epd = DB.Patches.getById(ep.patchId); if (epd && collides({...pp, rotation:nr}, pd, ep, epd)) { hit = true; break; } }
-      if (!hit && isInZone(pp.x, pp.y, pd.realWidth, pd.realHeight, nr)) {
+      if (isInZone(pp.x, pp.y, pd.realWidth, pd.realHeight, nr)) {
         pp.rotation = nr;
         const el = canvasArea.querySelector(`[data-pp-id="${pp.id}"]`);
         if (el) el.style.transform = `rotate(${nr}deg)`;
@@ -565,10 +511,7 @@
       const a = Math.atan2(t.clientY - cyPx, t.clientX - cxPx);
       let nr = origRot + (a - startA) * 180 / Math.PI;
       nr = ((nr % 360) + 360) % 360;
-      const others = currentPatches().filter(p => p.id !== pp.id);
-      let hit = false;
-      for (const ep of others) { const epd = DB.Patches.getById(ep.patchId); if (epd && collides({...pp, rotation:nr}, pd, ep, epd)) { hit = true; break; } }
-      if (!hit && isInZone(pp.x, pp.y, pd.realWidth, pd.realHeight, nr)) {
+      if (isInZone(pp.x, pp.y, pd.realWidth, pd.realHeight, nr)) {
         pp.rotation = nr;
         const el = canvasArea.querySelector(`[data-pp-id="${pp.id}"]`);
         if (el) el.style.transform = `rotate(${nr}deg)`;
