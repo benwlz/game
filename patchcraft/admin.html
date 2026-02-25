@@ -100,6 +100,48 @@
   .batch-bar .batch-count { font-weight: 600; font-size: 0.85rem; color: var(--coral); }
   .batch-bar .btn { font-size: 0.8rem; padding: 4px 12px; }
 
+  /* Gallery upload */
+  .gallery-upload-area {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+  }
+  .gallery-upload-area .g-thumb {
+    width: 72px; height: 72px; position: relative; border-radius: 6px;
+    overflow: hidden; border: 2px solid var(--border);
+  }
+  .gallery-upload-area .g-thumb img { width: 100%; height: 100%; object-fit: contain; background: var(--blush); }
+  .gallery-upload-area .g-thumb .g-remove {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+    border-radius: 50%; background: #E85555; color: white; border: none;
+    font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .gallery-add-btn {
+    width: 72px; height: 72px; border: 2px dashed var(--border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1.5rem; color: var(--text-light);
+    transition: border-color 0.2s; position: relative; background: var(--cream);
+  }
+  .gallery-add-btn:hover { border-color: var(--coral); color: var(--coral); }
+  .gallery-add-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  /* Web Collector */
+  .wc-step { margin-bottom: 16px; }
+  .wc-step-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--dark); }
+  .wc-extracted { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: var(--cream); }
+  .wc-images { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .wc-images .wc-img-item {
+    width: 80px; height: 80px; border: 2px solid var(--border); border-radius: 6px;
+    overflow: hidden; cursor: pointer; position: relative; transition: border-color 0.2s;
+  }
+  .wc-images .wc-img-item:hover { border-color: var(--coral); }
+  .wc-images .wc-img-item.selected { border-color: var(--coral); border-width: 3px; }
+  .wc-images .wc-img-item.selected::after {
+    content: '\2713'; position: absolute; top: 2px; right: 4px;
+    color: var(--coral); font-weight: 700; font-size: 14px;
+  }
+  .wc-images .wc-img-item img { width: 100%; height: 100%; object-fit: contain; background: var(--blush); }
+  .wc-field { margin-bottom: 10px; }
+  .wc-field label { font-size: 0.8rem; font-weight: 500; color: var(--text-light); display: block; margin-bottom: 3px; }
+
   /* Design viewer */
   .design-viewer { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
   .dv-card {
@@ -129,6 +171,7 @@
     <a href="#" data-section="patches">Patches</a>
     <a href="#" data-section="designs">User Designs</a>
     <a href="#" data-section="orders">Orders</a>
+    <a href="#" data-section="collector">Web Collector</a>
     <a href="index.html" style="margin-top:auto;border-top:1px solid var(--border)">Back to Site</a>
   </nav>
 
@@ -218,6 +261,56 @@
         </table>
       </div>
     </section>
+
+    <!-- Web Collector -->
+    <section id="sec-collector" class="hidden">
+      <div class="admin-header">
+        <h2>Web Collector</h2>
+      </div>
+      <p style="color:var(--text-light);font-size:0.9rem;margin-bottom:20px">Collect product images and info from external webpages and save as draft. Admin can review, edit images, and publish.</p>
+
+      <div class="wc-step">
+        <div class="wc-step-title">1. Paste Page HTML Source</div>
+        <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px">Visit the product page, right-click &rarr; "View Page Source", copy all, and paste below.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Source URL (reference)</label><input class="form-control" id="wc-url" placeholder="https://example.com/product/..."></div>
+          <div class="form-group"><label>Save as</label><select class="form-control" id="wc-type"><option value="carrier">Carrier</option><option value="patch">Patch</option></select></div>
+        </div>
+        <div class="form-group">
+          <label>Page HTML Source</label>
+          <textarea class="form-control" id="wc-html" rows="6" placeholder="Paste the full HTML source code here..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" id="wc-extract">Extract Data</button>
+      </div>
+
+      <div class="wc-step hidden" id="wc-results">
+        <div class="wc-step-title">2. Review Extracted Data</div>
+        <div class="wc-extracted">
+          <div class="wc-field">
+            <label>Detected Images (click to select for product)</label>
+            <div class="wc-images" id="wc-images"></div>
+          </div>
+          <div class="form-row">
+            <div class="wc-field"><label>Product Name</label><input class="form-control" id="wc-name"></div>
+            <div class="wc-field"><label>Name (CN)</label><input class="form-control" id="wc-name-zh"></div>
+          </div>
+          <div class="wc-field"><label>Description</label><textarea class="form-control" id="wc-desc" rows="3"></textarea></div>
+          <div class="form-row-3">
+            <div class="wc-field"><label>Width (mm)</label><input class="form-control" id="wc-width" type="number"></div>
+            <div class="wc-field"><label>Height (mm)</label><input class="form-control" id="wc-height" type="number"></div>
+            <div class="wc-field"><label>Price ($)</label><input class="form-control" id="wc-price" type="number" step="0.01"></div>
+          </div>
+          <div class="form-row">
+            <div class="wc-field"><label>Color</label><input class="form-control" id="wc-color"></div>
+            <div class="wc-field" id="wc-cat-field"><label>Category</label><input class="form-control" id="wc-cat"></div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" id="wc-save-draft">Save as Draft</button>
+            <button class="btn btn-outline btn-sm" id="wc-reset">Reset</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -241,6 +334,22 @@
       <div class="form-row">
         <div class="form-group"><label>Color</label><input class="form-control" id="f-color" placeholder="e.g. brown, red, blue"></div>
         <div class="form-group" id="f-category-group"><label>Category</label><input class="form-control" id="f-category" placeholder="e.g. floral, animal"></div>
+      </div>
+      <div class="form-group">
+        <label>Description (EN)</label>
+        <textarea class="form-control" id="f-desc" rows="2" placeholder="Product description..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Description (CN)</label>
+        <textarea class="form-control" id="f-descZh" rows="2" placeholder="商品描述..."></textarea>
+      </div>
+
+      <!-- Gallery images -->
+      <div class="form-group">
+        <label>Gallery Images</label>
+        <div class="gallery-upload-area" id="f-gallery-area">
+          <div class="gallery-add-btn" id="gallery-add-btn">+<input type="file" accept="image/*" multiple id="gallery-file-input"></div>
+        </div>
       </div>
 
       <!-- Images -->
@@ -358,7 +467,7 @@
 <script>
 (() => {
   // ---- Navigation ----
-  const sections = ['dashboard','carriers','patches','designs','orders'];
+  const sections = ['dashboard','carriers','patches','designs','orders','collector'];
   document.querySelectorAll('.admin-nav a[data-section]').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();
@@ -418,7 +527,7 @@
     const tbody = document.querySelector('#carrier-table tbody');
     tbody.innerHTML = '';
     DB.Carriers.getAll().forEach(c => {
-      const statusCls = c.status === 'active' ? 'badge-active' : 'badge-inactive';
+      const statusCls = c.status === 'active' ? 'badge-active' : c.status === 'draft' ? 'badge-draft' : 'badge-inactive';
       tbody.innerHTML += `<tr>
         <td><img class="thumb" src="${c.frontImage}" alt="${c.name}"></td>
         <td><strong>${c.name}</strong><br><span style="font-size:0.8rem;color:var(--text-light)">${c.nameZh||''}</span></td>
@@ -454,6 +563,7 @@
     document.getElementById('patch-image').classList.add('hidden');
     document.getElementById('patch-area-fields').classList.remove('hidden');
     imageData = { front: null, back: null, patch: null };
+    galleryImages = [];
 
     if (editId) {
       const c = DB.Carriers.getById(editId);
@@ -465,21 +575,24 @@
       document.getElementById('f-height').value = c.realHeight || '';
       document.getElementById('f-price').value = c.price || '';
       document.getElementById('f-color').value = c.color || '';
+      document.getElementById('f-desc').value = c.description || '';
+      document.getElementById('f-descZh').value = c.descriptionZh || '';
       document.getElementById('f-pa-x').value = c.patchArea?.x || 10;
       document.getElementById('f-pa-y').value = c.patchArea?.y || 10;
       document.getElementById('f-pa-w').value = c.patchArea?.w || '';
       document.getElementById('f-pa-h').value = c.patchArea?.h || '';
-      // Show existing images
       showPreview('front', c.frontImage);
       showPreview('back', c.backImage);
       imageData.front = c.frontImage;
       imageData.back = c.backImage;
+      galleryImages = c.gallery ? [...c.gallery] : [];
     } else {
       document.getElementById('form-title').textContent = 'Add Carrier';
       form.reset();
       document.getElementById('f-id').value = '';
       hidePreview('front'); hidePreview('back'); hidePreview('patch');
     }
+    renderGalleryThumbs();
     modal.classList.add('open');
   }
 
@@ -490,7 +603,7 @@
     const tbody = document.querySelector('#patch-table tbody');
     tbody.innerHTML = '';
     DB.Patches.getAll().forEach(p => {
-      const statusCls = p.status === 'active' ? 'badge-active' : 'badge-inactive';
+      const statusCls = p.status === 'active' ? 'badge-active' : p.status === 'draft' ? 'badge-draft' : 'badge-inactive';
       tbody.innerHTML += `<tr>
         <td><img class="thumb" src="${p.image}" alt="${p.name}" style="background:repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 8px 8px"></td>
         <td><strong>${p.name}</strong><br><span style="font-size:0.8rem;color:var(--text-light)">${p.nameZh||''}</span></td>
@@ -526,6 +639,7 @@
     document.getElementById('patch-image').classList.remove('hidden');
     document.getElementById('patch-area-fields').classList.add('hidden');
     imageData = { front: null, back: null, patch: null };
+    galleryImages = [];
 
     if (editId) {
       const p = DB.Patches.getById(editId);
@@ -538,14 +652,18 @@
       document.getElementById('f-price').value = p.price || '';
       document.getElementById('f-color').value = p.color || '';
       document.getElementById('f-category').value = p.category || '';
+      document.getElementById('f-desc').value = p.description || '';
+      document.getElementById('f-descZh').value = p.descriptionZh || '';
       showPreview('patch', p.image);
       imageData.patch = p.image;
+      galleryImages = p.gallery ? [...p.gallery] : [];
     } else {
       document.getElementById('form-title').textContent = 'Add Patch';
       form.reset();
       document.getElementById('f-id').value = '';
       hidePreview('front'); hidePreview('back'); hidePreview('patch');
     }
+    renderGalleryThumbs();
     modal.classList.add('open');
   }
 
@@ -560,6 +678,9 @@
     const realHeight = parseFloat(document.getElementById('f-height').value);
     const price = parseFloat(document.getElementById('f-price').value);
     const color = document.getElementById('f-color').value.trim();
+    const description = document.getElementById('f-desc').value.trim();
+    const descriptionZh = document.getElementById('f-descZh').value.trim();
+    const gallery = [...galleryImages];
 
     if (!name || !realWidth || !realHeight) return showToast('Please fill required fields', 'error');
 
@@ -572,14 +693,14 @@
         w: parseFloat(document.getElementById('f-pa-w').value) || (realWidth - 20),
         h: parseFloat(document.getElementById('f-pa-h').value) || (realHeight - 20),
       };
-      const data = { name, nameZh, frontImage, backImage, realWidth, realHeight, price, color, patchArea, backPatchArea: { ...patchArea } };
+      const data = { name, nameZh, frontImage, backImage, realWidth, realHeight, price, color, description, descriptionZh, gallery, patchArea, backPatchArea: { ...patchArea } };
       if (editId) DB.Carriers.update(editId, data);
       else DB.Carriers.add(data);
       renderCarrierTable();
     } else {
       const category = document.getElementById('f-category').value.trim();
       const image = imageData.patch;
-      const data = { name, nameZh, image, realWidth, realHeight, price, color, category };
+      const data = { name, nameZh, image, realWidth, realHeight, price, color, category, description, descriptionZh, gallery };
       if (editId) DB.Patches.update(editId, data);
       else DB.Patches.add(data);
       renderPatchTable();
@@ -626,6 +747,38 @@
       };
       reader.readAsDataURL(file);
     });
+  });
+
+  // ---- Gallery image handling ----
+  let galleryImages = [];
+
+  function renderGalleryThumbs() {
+    const area = document.getElementById('f-gallery-area');
+    area.querySelectorAll('.g-thumb').forEach(el => el.remove());
+    const addBtn = document.getElementById('gallery-add-btn');
+    galleryImages.forEach((src, i) => {
+      const div = document.createElement('div');
+      div.className = 'g-thumb';
+      div.innerHTML = `<img src="${src}"><button type="button" class="g-remove" data-gi="${i}">&times;</button>`;
+      div.querySelector('.g-remove').addEventListener('click', () => {
+        galleryImages.splice(i, 1);
+        renderGalleryThumbs();
+      });
+      area.insertBefore(div, addBtn);
+    });
+  }
+
+  document.getElementById('gallery-file-input').addEventListener('change', e => {
+    const files = e.target.files;
+    [...files].forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        galleryImages.push(ev.target.result);
+        renderGalleryThumbs();
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
   });
 
   // =====================
@@ -1139,6 +1292,146 @@
     document.querySelectorAll('.order-row-cb').forEach(cb => cb.checked = false);
     document.getElementById('order-select-all').checked = false;
     updateOrderBatchBar();
+  });
+
+  // =====================
+  // Web Collector
+  // =====================
+  let wcSelectedImages = new Set();
+
+  document.getElementById('wc-type').addEventListener('change', e => {
+    document.getElementById('wc-cat-field').style.display = e.target.value === 'patch' ? '' : 'none';
+  });
+
+  document.getElementById('wc-extract').addEventListener('click', () => {
+    const html = document.getElementById('wc-html').value.trim();
+    if (!html) return showToast('Please paste the page HTML source', 'error');
+    const baseUrl = document.getElementById('wc-url').value.trim();
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+
+      // Extract images
+      const imgs = doc.querySelectorAll('img');
+      const imgSrcs = [];
+      const seen = new Set();
+      imgs.forEach(img => {
+        let src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+        if (!src || src.startsWith('data:image/svg')) return;
+        // Resolve relative URLs
+        if (src.startsWith('//')) src = 'https:' + src;
+        else if (src.startsWith('/') && baseUrl) {
+          try { const u = new URL(baseUrl); src = u.origin + src; } catch {}
+        } else if (!src.startsWith('http') && !src.startsWith('data:') && baseUrl) {
+          try { src = new URL(src, baseUrl).href; } catch {}
+        }
+        if (!seen.has(src)) { seen.add(src); imgSrcs.push(src); }
+      });
+
+      // Extract title
+      const title = doc.querySelector('h1')?.textContent?.trim() || doc.querySelector('title')?.textContent?.trim() || '';
+
+      // Extract description
+      const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+      const firstP = doc.querySelector('p')?.textContent?.trim() || '';
+      const desc = metaDesc || firstP;
+
+      // Extract price
+      let price = '';
+      const priceRegex = /[\$\u00a5\u20ac]\s*([\d,.]+)/;
+      const bodyText = doc.body?.textContent || '';
+      const priceMatch = bodyText.match(priceRegex);
+      if (priceMatch) price = priceMatch[1].replace(',', '');
+
+      // Show results
+      document.getElementById('wc-results').classList.remove('hidden');
+      const imagesDiv = document.getElementById('wc-images');
+      imagesDiv.innerHTML = '';
+      wcSelectedImages.clear();
+
+      if (imgSrcs.length === 0) {
+        imagesDiv.innerHTML = '<span style="color:var(--text-light);font-size:0.8rem">No images found. You can add images manually after saving the draft.</span>';
+      } else {
+        imgSrcs.slice(0, 30).forEach((src, i) => {
+          const item = document.createElement('div');
+          item.className = 'wc-img-item';
+          item.innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.remove()">`;
+          item.addEventListener('click', () => {
+            if (wcSelectedImages.has(src)) { wcSelectedImages.delete(src); item.classList.remove('selected'); }
+            else { wcSelectedImages.add(src); item.classList.add('selected'); }
+          });
+          imagesDiv.appendChild(item);
+        });
+      }
+
+      document.getElementById('wc-name').value = title;
+      document.getElementById('wc-name-zh').value = '';
+      document.getElementById('wc-desc').value = desc.slice(0, 500);
+      document.getElementById('wc-price').value = price;
+      document.getElementById('wc-width').value = '';
+      document.getElementById('wc-height').value = '';
+      document.getElementById('wc-color').value = '';
+      document.getElementById('wc-cat').value = '';
+
+      showToast(`Extracted: ${imgSrcs.length} images, title, description`);
+    } catch (err) {
+      showToast('Failed to parse HTML: ' + err.message, 'error');
+    }
+  });
+
+  document.getElementById('wc-save-draft').addEventListener('click', () => {
+    const type = document.getElementById('wc-type').value;
+    const name = document.getElementById('wc-name').value.trim();
+    const nameZh = document.getElementById('wc-name-zh').value.trim();
+    const description = document.getElementById('wc-desc').value.trim();
+    const realWidth = parseFloat(document.getElementById('wc-width').value) || 50;
+    const realHeight = parseFloat(document.getElementById('wc-height').value) || 50;
+    const price = parseFloat(document.getElementById('wc-price').value) || 0;
+    const color = document.getElementById('wc-color').value.trim();
+    const gallery = [...wcSelectedImages];
+
+    if (!name) return showToast('Please enter a product name', 'error');
+
+    if (type === 'carrier') {
+      const frontImage = gallery[0] || '';
+      const backImage = gallery[1] || '';
+      DB.Carriers.add({
+        name, nameZh, description, descriptionZh: '',
+        frontImage, backImage,
+        gallery: gallery.slice(2),
+        realWidth, realHeight, price, color,
+        patchArea: { x: 10, y: 10, w: realWidth - 20, h: realHeight - 20 },
+        backPatchArea: { x: 10, y: 10, w: realWidth - 20, h: realHeight - 20 },
+        status: 'draft',
+        sourceUrl: document.getElementById('wc-url').value.trim(),
+      });
+      showToast('Carrier saved as draft! Go to Carriers to edit and publish.');
+    } else {
+      const category = document.getElementById('wc-cat').value.trim();
+      const image = gallery[0] || '';
+      DB.Patches.add({
+        name, nameZh, description, descriptionZh: '',
+        image,
+        gallery: gallery.slice(1),
+        realWidth, realHeight, price, color, category,
+        status: 'draft',
+        sourceUrl: document.getElementById('wc-url').value.trim(),
+      });
+      showToast('Patch saved as draft! Go to Patches to edit and publish.');
+    }
+
+    // Reset
+    document.getElementById('wc-html').value = '';
+    document.getElementById('wc-results').classList.add('hidden');
+    wcSelectedImages.clear();
+  });
+
+  document.getElementById('wc-reset').addEventListener('click', () => {
+    document.getElementById('wc-html').value = '';
+    document.getElementById('wc-url').value = '';
+    document.getElementById('wc-results').classList.add('hidden');
+    wcSelectedImages.clear();
   });
 })();
 </script>

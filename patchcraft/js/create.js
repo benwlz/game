@@ -174,8 +174,12 @@
           <div class="co-name">${c.name}</div>
           <div class="co-meta">${c.nameZh || ''} · ${c.realWidth}×${c.realHeight}mm</div>
         </div>
-        <div class="co-price">${fmtPrice(c.price)}</div>`;
-      el.addEventListener('click', () => {
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <div class="co-price">${fmtPrice(c.price)}</div>
+          <a href="product.html?type=carrier&id=${c.id}&from=create" class="co-detail" title="View details" style="font-size:0.65rem;color:var(--text-light);text-decoration:underline">Details</a>
+        </div>`;
+      el.addEventListener('click', e => {
+        if (e.target.closest('.co-detail')) return;
         selectedCarrier = c;
         frontPatches = []; backPatches = []; undoStack = [];
         renderCarriers();
@@ -183,6 +187,7 @@
           <img src="${c.frontImage}" style="max-height:260px;border-radius:var(--radius);margin-bottom:12px" alt="${c.name}">
           <h3>${c.name}</h3>
           <p style="color:var(--text-light);font-size:0.9rem">${c.realWidth}×${c.realHeight}mm · ${fmtPrice(c.price)}</p>
+          <a href="product.html?type=carrier&id=${c.id}&from=create" style="font-size:0.85rem;display:inline-block;margin-top:8px">View Full Details &rarr;</a>
         </div>`;
         priceBar.style.display = '';
         updatePrice();
@@ -261,9 +266,10 @@
       el.className = 'patch-item';
       el.draggable = true;
       el.dataset.patchId = p.id;
-      el.innerHTML = `<img src="${p.image}" alt="${p.name}"><div class="pi-name">${p.name}</div><div class="pi-price">${fmtPrice(p.price)}</div>`;
+      el.innerHTML = `<img src="${p.image}" alt="${p.name}"><div class="pi-name">${p.name}</div><div class="pi-price">${fmtPrice(p.price)}</div><a href="product.html?type=patch&id=${p.id}&from=create" class="pi-detail" style="font-size:0.55rem;color:var(--text-light);text-decoration:underline;display:block">Details</a>`;
 
       el.addEventListener('dragstart', e => {
+        if (e.target.closest('.pi-detail')) { e.preventDefault(); return; }
         e.dataTransfer.setData('text/plain', p.id);
         e.dataTransfer.effectAllowed = 'copy';
         const ghost = document.createElement('img');

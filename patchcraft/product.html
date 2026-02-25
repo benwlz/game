@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product — PatchCraft</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .pd-wrap { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+  .pd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text-light); font-size: 0.9rem; margin-bottom: 20px; }
+  .pd-back:hover { color: var(--coral); }
+  .pd-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  /* Image area */
+  .pd-images {}
+  .pd-main-img {
+    width: 100%; aspect-ratio: 1; object-fit: contain;
+    background: var(--blush); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 12px;
+  }
+  .pd-gallery { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pd-gallery .thumb {
+    width: 72px; height: 72px; object-fit: contain;
+    border-radius: var(--radius-xs); border: 2px solid var(--border);
+    padding: 4px; background: var(--blush); cursor: pointer; transition: border-color 0.2s;
+  }
+  .pd-gallery .thumb:hover, .pd-gallery .thumb.active { border-color: var(--coral); }
+  /* Info area */
+  .pd-info {}
+  .pd-name { font-size: 1.8rem; font-weight: 700; color: var(--dark); margin-bottom: 4px; }
+  .pd-name-zh { font-size: 1rem; color: var(--text-light); margin-bottom: 16px; }
+  .pd-price { font-size: 1.6rem; font-weight: 700; color: var(--coral); margin-bottom: 20px; }
+  .pd-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+  .pd-meta .tag {
+    padding: 6px 14px; border-radius: 50px; font-size: 0.8rem; font-weight: 500;
+    background: var(--blush); color: var(--terracotta);
+  }
+  .pd-desc-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; color: var(--dark); }
+  .pd-desc {
+    font-size: 0.9rem; line-height: 1.7; color: var(--text);
+    margin-bottom: 12px;
+  }
+  .pd-desc-zh {
+    font-size: 0.85rem; line-height: 1.7; color: var(--text-light);
+    margin-bottom: 24px;
+  }
+  .pd-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .pd-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  /* Back image for carriers */
+  .pd-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .pd-sides .side-label { font-size: 0.75rem; color: var(--text-light); text-align: center; margin-bottom: 4px; }
+  .pd-sides img {
+    width: 100%; aspect-ratio: 4/3; object-fit: contain;
+    background: var(--blush); border-radius: var(--radius-sm); padding: 12px;
+  }
+  @media (max-width: 768px) {
+    .pd-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav id="main-nav"></nav>
+
+<div class="pd-wrap">
+  <a class="pd-back" id="back-link" href="index.html">&larr; Back</a>
+  <div class="pd-layout">
+    <div class="pd-images">
+      <img class="pd-main-img" id="main-img" src="" alt="">
+      <div class="pd-gallery" id="gallery"></div>
+      <div class="pd-sides hidden" id="sides-area">
+        <div><div class="side-label">Front</div><img id="side-front" src="" alt="Front"></div>
+        <div><div class="side-label">Back</div><img id="side-back" src="" alt="Back"></div>
+      </div>
+    </div>
+    <div class="pd-info">
+      <h1 class="pd-name" id="pd-name"></h1>
+      <div class="pd-name-zh" id="pd-name-zh"></div>
+      <div class="pd-price" id="pd-price"></div>
+      <div class="pd-meta" id="pd-meta"></div>
+      <hr class="pd-divider">
+      <div class="pd-desc-title">Description</div>
+      <p class="pd-desc" id="pd-desc"></p>
+      <p class="pd-desc-zh" id="pd-desc-zh"></p>
+      <div class="pd-actions" id="pd-actions"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <p>&copy; 2026 PatchCraft. Handmade with love.</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script>
+(() => {
+  renderNav('home');
+
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type');
+  const id = params.get('id');
+  const from = params.get('from');
+
+  if (!type || !id) { window.location.href = 'index.html'; return; }
+
+  const item = type === 'carrier' ? DB.Carriers.getById(id) : DB.Patches.getById(id);
+  if (!item) { window.location.href = 'index.html'; return; }
+
+  document.title = item.name + ' — PatchCraft';
+
+  // Back link
+  const backLink = document.getElementById('back-link');
+  if (from === 'create') {
+    backLink.href = 'create.html';
+    backLink.textContent = '\u2190 Back to Creation';
+  }
+
+  // Main image
+  const mainImg = document.getElementById('main-img');
+  const primaryImg = type === 'carrier' ? item.frontImage : item.image;
+  mainImg.src = primaryImg;
+
+  // Gallery
+  const galleryEl = document.getElementById('gallery');
+  const allImages = [primaryImg];
+  if (type === 'carrier' && item.backImage) allImages.push(item.backImage);
+  if (item.gallery && item.gallery.length) allImages.push(...item.gallery);
+
+  if (allImages.length > 1) {
+    allImages.forEach((src, i) => {
+      const thumb = document.createElement('img');
+      thumb.className = 'thumb' + (i === 0 ? ' active' : '');
+      thumb.src = src;
+      thumb.addEventListener('click', () => {
+        mainImg.src = src;
+        galleryEl.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+        thumb.classList.add('active');
+      });
+      galleryEl.appendChild(thumb);
+    });
+  }
+
+  // Carrier front/back preview
+  if (type === 'carrier' && item.backImage) {
+    const sidesArea = document.getElementById('sides-area');
+    sidesArea.classList.remove('hidden');
+    document.getElementById('side-front').src = item.frontImage;
+    document.getElementById('side-back').src = item.backImage;
+  }
+
+  // Info
+  document.getElementById('pd-name').textContent = item.name;
+  document.getElementById('pd-name-zh').textContent = item.nameZh || '';
+  document.getElementById('pd-price').textContent = fmtPrice(item.price);
+
+  // Meta tags
+  const metaEl = document.getElementById('pd-meta');
+  const tags = [];
+  if (type === 'carrier') {
+    tags.push(item.realWidth + '\u00d7' + item.realHeight + 'mm');
+  } else {
+    tags.push(item.realWidth + '\u00d7' + item.realHeight + 'mm');
+    if (item.category) tags.push(item.category.charAt(0).toUpperCase() + item.category.slice(1));
+  }
+  if (item.color) tags.push(item.color.charAt(0).toUpperCase() + item.color.slice(1));
+  if (type === 'carrier') tags.push('Front & Back');
+  metaEl.innerHTML = tags.map(t => '<span class="tag">' + t + '</span>').join('');
+
+  // Description
+  document.getElementById('pd-desc').textContent = item.description || 'No description available.';
+  const descZhEl = document.getElementById('pd-desc-zh');
+  if (item.descriptionZh) descZhEl.textContent = item.descriptionZh;
+  else descZhEl.style.display = 'none';
+
+  // Action buttons
+  const actionsEl = document.getElementById('pd-actions');
+  if (from === 'create') {
+    actionsEl.innerHTML = '<button class="btn btn-primary" id="btn-use">Use in My Design</button><a href="create.html" class="btn btn-outline">Back to Editor</a>';
+    document.getElementById('btn-use').addEventListener('click', () => {
+      window.location.href = 'create.html';
+    });
+  } else {
+    actionsEl.innerHTML = '<a href="create.html" class="btn btn-primary">Start Creating with This</a><a href="index.html" class="btn btn-outline">Browse More</a>';
+  }
+})();
+</script>
+</body>
+</html>
