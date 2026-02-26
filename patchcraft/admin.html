@@ -267,13 +267,16 @@
       <div class="admin-header">
         <h2>Web Collector</h2>
       </div>
-      <p style="color:var(--text-light);font-size:0.9rem;margin-bottom:20px">Collect product images and info from external webpages and save as draft. Admin can review, edit images, and publish.</p>
+      <p style="color:var(--text-light);font-size:0.9rem;margin-bottom:20px">Collect product images and info from external webpages and save as draft. Supports structured data (JSON-LD), Open Graph, microdata, and common e-commerce page layouts.</p>
 
       <div class="wc-step">
         <div class="wc-step-title">1. Paste Page HTML Source</div>
-        <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px">Visit the product page, right-click &rarr; "View Page Source", copy all, and paste below.</p>
+        <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px">
+          Visit the product page &rarr; right-click &rarr; <b>"View Page Source"</b> (or Ctrl+U) &rarr; Select All (Ctrl+A) &rarr; Copy &rarr; Paste below.<br>
+          <span style="color:var(--coral)">Tip:</span> Fill in the Source URL first — it helps resolve relative image paths correctly.
+        </p>
         <div class="form-row">
-          <div class="form-group"><label>Source URL (reference)</label><input class="form-control" id="wc-url" placeholder="https://example.com/product/..."></div>
+          <div class="form-group"><label>Source URL (important for image resolution)</label><input class="form-control" id="wc-url" placeholder="https://example.com/product/..."></div>
           <div class="form-group"><label>Save as</label><select class="form-control" id="wc-type"><option value="carrier">Carrier</option><option value="patch">Patch</option></select></div>
         </div>
         <div class="form-group">
@@ -289,6 +292,10 @@
           <div class="wc-field">
             <label>Detected Images (click to select for product)</label>
             <div class="wc-images" id="wc-images"></div>
+            <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+              <input class="form-control" id="wc-add-img-url" placeholder="Manually add image URL..." style="flex:1;font-size:0.8rem">
+              <button class="btn btn-outline btn-sm" id="wc-add-img-btn" style="white-space:nowrap">+ Add</button>
+            </div>
           </div>
           <div class="form-row">
             <div class="wc-field"><label>Product Name</label><input class="form-control" id="wc-name"></div>
@@ -1312,39 +1319,322 @@
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
 
-      // Extract images
-      const imgs = doc.querySelectorAll('img');
+      // --- Helper: resolve URL ---
+      function resolveUrl(src) {
+        if (!src || src.startsWith('data:image/svg') || src.startsWith('javascript:')) return '';
+        src = src.trim();
+        if (src.startsWith('//')) return 'https:' + src;
+        if (src.startsWith('/') && baseUrl) {
+          try { return new URL(baseUrl).origin + src; } catch { return ''; }
+        }
+        if (!src.startsWith('http') && !src.startsWith('data:') && baseUrl) {
+          try { return new URL(src, baseUrl).href; } catch { return ''; }
+        }
+        return src.startsWith('http') || src.startsWith('data:') ? src : '';
+      }
+
+      // --- Helper: parse JSON-LD structured data ---
+      function getJsonLd() {
+        const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+        const results = [];
+        scripts.forEach(s => {
+          try {
+            let data = JSON.parse(s.textContent);
+            if (Array.isArray(data)) data.forEach(d => results.push(d));
+            else results.push(data);
+            // Handle @graph arrays
+            if (data['@graph']) data['@graph'].forEach(d => results.push(d));
+          } catch {}
+        });
+        // Find Product type
+        return results.find(d => d['@type'] === 'Product' || d['@type'] === 'IndividualProduct')
+            || results.find(d => typeof d['@type'] === 'string' && d['@type'].includes('Product'))
+            || results[0] || null;
+      }
+
+      // --- Helper: get meta tag content ---
+      function getMeta(nameOrProp) {
+        return doc.querySelector(`meta[property="${nameOrProp}"]`)?.getAttribute('content')
+            || doc.querySelector(`meta[name="${nameOrProp}"]`)?.getAttribute('content') || '';
+      }
+
+      // --- Helper: get microdata value ---
+      function getMicrodata(prop) {
+        const el = doc.querySelector(`[itemprop="${prop}"]`);
+        if (!el) return '';
+        return el.getAttribute('content') || el.textContent?.trim() || '';
+      }
+
+      const jsonLd = getJsonLd();
+
+      // =========================
+      // EXTRACT IMAGES (multi-strategy)
+      // =========================
       const imgSrcs = [];
       const seen = new Set();
-      imgs.forEach(img => {
-        let src = img.getAttribute('src') || img.getAttribute('data-src') || '';
-        if (!src || src.startsWith('data:image/svg')) return;
-        // Resolve relative URLs
-        if (src.startsWith('//')) src = 'https:' + src;
-        else if (src.startsWith('/') && baseUrl) {
-          try { const u = new URL(baseUrl); src = u.origin + src; } catch {}
-        } else if (!src.startsWith('http') && !src.startsWith('data:') && baseUrl) {
-          try { src = new URL(src, baseUrl).href; } catch {}
-        }
-        if (!seen.has(src)) { seen.add(src); imgSrcs.push(src); }
+      function addImg(src) {
+        src = resolveUrl(src);
+        if (src && !seen.has(src)) { seen.add(src); imgSrcs.push(src); }
+      }
+
+      // Strategy 1: JSON-LD images
+      if (jsonLd) {
+        const jImg = jsonLd.image;
+        if (typeof jImg === 'string') addImg(jImg);
+        else if (Array.isArray(jImg)) jImg.forEach(i => addImg(typeof i === 'string' ? i : (i.url || i.contentUrl || '')));
+        else if (jImg && typeof jImg === 'object') addImg(jImg.url || jImg.contentUrl || '');
+      }
+
+      // Strategy 2: Open Graph images
+      doc.querySelectorAll('meta[property="og:image"], meta[property="og:image:url"], meta[property="product:image"]').forEach(m => {
+        addImg(m.getAttribute('content'));
       });
 
-      // Extract title
-      const title = doc.querySelector('h1')?.textContent?.trim() || doc.querySelector('title')?.textContent?.trim() || '';
+      // Strategy 3: Twitter card image
+      addImg(getMeta('twitter:image'));
 
-      // Extract description
-      const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-      const firstP = doc.querySelector('p')?.textContent?.trim() || '';
-      const desc = metaDesc || firstP;
+      // Strategy 4: <img> tags with multiple src attribute strategies
+      const imgAttrs = ['src', 'data-src', 'data-original', 'data-lazy-src', 'data-zoom-image',
+                        'data-large_image', 'data-srcset', 'data-lazy', 'data-url', 'data-image',
+                        'data-hi-res-src', 'data-big-img', 'data-master'];
+      doc.querySelectorAll('img').forEach(img => {
+        // Skip tiny icons/tracking pixels (1x1, badges, etc.)
+        const w = parseInt(img.getAttribute('width') || '0');
+        const h = parseInt(img.getAttribute('height') || '0');
+        if (w > 0 && w < 30 && h > 0 && h < 30) return;
+        // Also check class names for common icon/logo patterns
+        const cls = (img.className || '').toLowerCase();
+        if (cls.includes('icon') || cls.includes('logo') || cls.includes('badge') || cls.includes('avatar')) return;
 
-      // Extract price
+        for (const attr of imgAttrs) {
+          const v = img.getAttribute(attr);
+          if (v) addImg(v);
+        }
+        // Handle srcset: pick the largest
+        const srcset = img.getAttribute('srcset');
+        if (srcset) {
+          const parts = srcset.split(',').map(s => s.trim().split(/\s+/));
+          let best = '', bestW = 0;
+          parts.forEach(([url, desc]) => {
+            const dw = parseInt(desc) || 0;
+            if (dw > bestW || !best) { best = url; bestW = dw; }
+          });
+          if (best) addImg(best);
+        }
+      });
+
+      // Strategy 5: <picture> + <source> elements
+      doc.querySelectorAll('picture source').forEach(src => {
+        const srcset = src.getAttribute('srcset');
+        if (srcset) {
+          const parts = srcset.split(',').map(s => s.trim().split(/\s+/));
+          parts.forEach(([url]) => { if (url) addImg(url); });
+        }
+      });
+
+      // Strategy 6: Microdata images
+      doc.querySelectorAll('[itemprop="image"]').forEach(el => {
+        addImg(el.getAttribute('content') || el.getAttribute('src') || el.getAttribute('href') || '');
+      });
+
+      // Strategy 7: Links to large images (common on e-commerce)
+      doc.querySelectorAll('a[href]').forEach(a => {
+        const href = a.getAttribute('href') || '';
+        if (/\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(href)) {
+          // Only if the link wraps an image or is in a gallery-like container
+          if (a.querySelector('img') || (a.className || '').match(/gallery|zoom|thumb|slide|product/i)) {
+            addImg(href);
+          }
+        }
+      });
+
+      // Strategy 8: CSS background images in common product containers
+      const bgSelectors = ['.product-image', '.gallery', '.slider', '.carousel',
+        '.swiper-slide', '.product-gallery', '.main-image', '.product-photo',
+        '[class*="product-img"]', '[class*="gallery"]', '[class*="slider"]',
+        '[style*="background"]'];
+      bgSelectors.forEach(sel => {
+        try {
+          doc.querySelectorAll(sel).forEach(el => {
+            const style = el.getAttribute('style') || '';
+            const bgMatch = style.match(/url\(['"]?([^'")\s]+)['"]?\)/);
+            if (bgMatch) addImg(bgMatch[1]);
+          });
+        } catch {}
+      });
+
+      // =========================
+      // EXTRACT TITLE (multi-strategy)
+      // =========================
+      let title = '';
+      // JSON-LD
+      if (jsonLd && jsonLd.name) title = jsonLd.name;
+      // Open Graph
+      if (!title) title = getMeta('og:title');
+      // Microdata
+      if (!title) title = getMicrodata('name');
+      // Common product title selectors
+      if (!title) {
+        const titleSels = ['h1.product-title', 'h1.product-name', '.product-title h1',
+          '.product-name', '.product_title', '#product-name', '#productTitle',
+          '[data-product-title]', '.goods-name', '.item-title',
+          '.tb-main-title', '.ItemHeader-title', 'h1'];
+        for (const sel of titleSels) {
+          const el = doc.querySelector(sel);
+          if (el && el.textContent.trim()) { title = el.textContent.trim(); break; }
+        }
+      }
+      // Fallback to <title>
+      if (!title) title = doc.querySelector('title')?.textContent?.trim() || '';
+      // Clean up: remove site name suffix
+      title = title.replace(/\s*[\|\-–—]\s*(Amazon|eBay|AliExpress|Taobao|Tmall|JD|Etsy|Shopify).*$/i, '').trim();
+
+      // =========================
+      // EXTRACT DESCRIPTION (multi-strategy)
+      // =========================
+      let desc = '';
+      // JSON-LD
+      if (jsonLd && jsonLd.description) desc = jsonLd.description;
+      // Open Graph
+      if (!desc) desc = getMeta('og:description');
+      // Meta description
+      if (!desc) desc = getMeta('description');
+      // Microdata
+      if (!desc) desc = getMicrodata('description');
+      // Common description selectors
+      if (!desc) {
+        const descSels = ['.product-description', '.product-desc', '#product-description',
+          '.item-desc', '.goods-desc', '.detail-desc', '.product-details',
+          '[data-product-description]', '.description-content',
+          '.ProductDescription', '.product_desc'];
+        for (const sel of descSels) {
+          const el = doc.querySelector(sel);
+          if (el && el.textContent.trim().length > 20) { desc = el.textContent.trim(); break; }
+        }
+      }
+      // Fallback: first substantial paragraph
+      if (!desc) {
+        const paragraphs = doc.querySelectorAll('p');
+        for (const p of paragraphs) {
+          const t = p.textContent.trim();
+          if (t.length > 30) { desc = t; break; }
+        }
+      }
+
+      // =========================
+      // EXTRACT PRICE (multi-strategy)
+      // =========================
       let price = '';
-      const priceRegex = /[\$\u00a5\u20ac]\s*([\d,.]+)/;
-      const bodyText = doc.body?.textContent || '';
-      const priceMatch = bodyText.match(priceRegex);
-      if (priceMatch) price = priceMatch[1].replace(',', '');
+      // JSON-LD offers.price
+      if (jsonLd) {
+        const offers = jsonLd.offers;
+        if (offers) {
+          if (Array.isArray(offers)) {
+            price = offers[0]?.price || offers[0]?.lowPrice || '';
+          } else {
+            price = offers.price || offers.lowPrice || '';
+          }
+        }
+      }
+      // Microdata price
+      if (!price) {
+        const priceEl = doc.querySelector('[itemprop="price"]');
+        if (priceEl) price = priceEl.getAttribute('content') || priceEl.textContent.trim();
+      }
+      // Common price selectors
+      if (!price) {
+        const priceSels = ['.product-price', '.price', '#product-price', '.sale-price',
+          '.current-price', '.offer-price', '.priceView-hero-price span',
+          '.a-price .a-offscreen', '.tb-rmb-num', '.price-current',
+          '[data-product-price]', '.goods-price', '.item-price',
+          '.ProductPrice', '.product_price', '.special-price .price',
+          'ins .amount', '.sale .amount', '.price-box .price'];
+        for (const sel of priceSels) {
+          try {
+            const el = doc.querySelector(sel);
+            if (el) {
+              const t = el.textContent.trim();
+              const m = t.match(/([\d,.]+)/);
+              if (m) { price = m[1]; break; }
+            }
+          } catch {}
+        }
+      }
+      // Regex fallback on body text: match various currency symbols
+      if (!price) {
+        const bodyText = doc.body?.textContent || '';
+        // Match $, ¥, ￥, €, £, and common formats
+        const priceRegex = /(?:[\$\u00a5\u20ac\u00a3\uffe5]|USD|CNY|EUR|GBP|RMB)\s*([\d,]+\.?\d*)/i;
+        const priceMatch = bodyText.match(priceRegex);
+        if (priceMatch) price = priceMatch[1];
+      }
+      if (typeof price === 'string') price = price.replace(/,/g, '');
 
+      // =========================
+      // EXTRACT COLOR (best effort)
+      // =========================
+      let color = '';
+      // Common color selectors
+      const colorSels = ['.color-name', '.selected-color', '.color-selected',
+        '[data-option-name="color"] .selected', '.product-color',
+        '.sku-color', '.color-label', '[itemprop="color"]'];
+      for (const sel of colorSels) {
+        try {
+          const el = doc.querySelector(sel);
+          if (el) { color = el.getAttribute('content') || el.textContent.trim(); break; }
+        } catch {}
+      }
+      // JSON-LD color
+      if (!color && jsonLd && jsonLd.color) color = jsonLd.color;
+
+      // =========================
+      // EXTRACT DIMENSIONS (best effort)
+      // =========================
+      let width = '', height = '';
+      // JSON-LD dimensions
+      if (jsonLd) {
+        if (jsonLd.width) width = typeof jsonLd.width === 'object' ? jsonLd.width.value : jsonLd.width;
+        if (jsonLd.height) height = typeof jsonLd.height === 'object' ? jsonLd.height.value : jsonLd.height;
+        if (jsonLd.depth && !height) height = typeof jsonLd.depth === 'object' ? jsonLd.depth.value : jsonLd.depth;
+      }
+      // Try regex on body text for dimension patterns like "10cm x 15cm", "100mm × 200mm"
+      if (!width || !height) {
+        const bodyText = doc.body?.textContent || '';
+        const dimPatterns = [
+          /(\d+\.?\d*)\s*(?:mm|毫米)\s*[x×X*]\s*(\d+\.?\d*)\s*(?:mm|毫米)/,
+          /(\d+\.?\d*)\s*(?:cm|厘米)\s*[x×X*]\s*(\d+\.?\d*)\s*(?:cm|厘米)/,
+          /(\d+\.?\d*)\s*[x×X]\s*(\d+\.?\d*)\s*(?:mm|cm|inch|in|毫米|厘米)/i,
+          /(?:尺寸|大小|size|dimensions?)\s*[:：]\s*(\d+\.?\d*)\s*[x×X*]\s*(\d+\.?\d*)/i,
+        ];
+        for (const pat of dimPatterns) {
+          const m = bodyText.match(pat);
+          if (m) {
+            width = m[1];
+            height = m[2];
+            // Convert cm to mm if unit is cm
+            if (pat.source.includes('cm')) { width = String(parseFloat(width) * 10); height = String(parseFloat(height) * 10); }
+            break;
+          }
+        }
+      }
+
+      // =========================
+      // EXTRACT CATEGORY (best effort)
+      // =========================
+      let category = '';
+      // JSON-LD category
+      if (jsonLd && jsonLd.category) category = typeof jsonLd.category === 'string' ? jsonLd.category : '';
+      // Breadcrumbs
+      if (!category) {
+        const breadcrumb = doc.querySelector('.breadcrumb li:nth-last-child(2), .breadcrumbs li:nth-last-child(2), [itemprop="itemListElement"]:nth-last-child(2) [itemprop="name"]');
+        if (breadcrumb) category = breadcrumb.textContent.trim();
+      }
+      // Product category from meta
+      if (!category) category = getMeta('product:category');
+
+      // =========================
       // Show results
+      // =========================
       document.getElementById('wc-results').classList.remove('hidden');
       const imagesDiv = document.getElementById('wc-images');
       imagesDiv.innerHTML = '';
@@ -1367,17 +1657,43 @@
 
       document.getElementById('wc-name').value = title;
       document.getElementById('wc-name-zh').value = '';
-      document.getElementById('wc-desc').value = desc.slice(0, 500);
+      document.getElementById('wc-desc').value = (desc || '').slice(0, 500);
       document.getElementById('wc-price').value = price;
-      document.getElementById('wc-width').value = '';
-      document.getElementById('wc-height').value = '';
-      document.getElementById('wc-color').value = '';
-      document.getElementById('wc-cat').value = '';
+      document.getElementById('wc-width').value = width;
+      document.getElementById('wc-height').value = height;
+      document.getElementById('wc-color').value = color;
+      document.getElementById('wc-cat').value = category;
 
-      showToast(`Extracted: ${imgSrcs.length} images, title, description`);
+      const stats = [];
+      if (imgSrcs.length) stats.push(`${imgSrcs.length} images`);
+      if (title) stats.push('title');
+      if (desc) stats.push('description');
+      if (price) stats.push('price');
+      if (color) stats.push('color');
+      if (width && height) stats.push('dimensions');
+      if (category) stats.push('category');
+      showToast(`Extracted: ${stats.join(', ') || 'no data found — try a different page source'}`);
     } catch (err) {
       showToast('Failed to parse HTML: ' + err.message, 'error');
     }
+  });
+
+  document.getElementById('wc-add-img-btn').addEventListener('click', () => {
+    const url = document.getElementById('wc-add-img-url').value.trim();
+    if (!url) return;
+    const imagesDiv = document.getElementById('wc-images');
+    // Remove "no images" message if present
+    if (!imagesDiv.querySelector('.wc-img-item')) imagesDiv.innerHTML = '';
+    const item = document.createElement('div');
+    item.className = 'wc-img-item selected';
+    item.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.remove()">`;
+    wcSelectedImages.add(url);
+    item.addEventListener('click', () => {
+      if (wcSelectedImages.has(url)) { wcSelectedImages.delete(url); item.classList.remove('selected'); }
+      else { wcSelectedImages.add(url); item.classList.add('selected'); }
+    });
+    imagesDiv.appendChild(item);
+    document.getElementById('wc-add-img-url').value = '';
   });
 
   document.getElementById('wc-save-draft').addEventListener('click', () => {
