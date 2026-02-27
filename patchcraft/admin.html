@@ -1367,6 +1367,168 @@
 
       const jsonLd = getJsonLd();
 
+      // --- Helper: extract embedded JS data from <script> tags ---
+      // Chinese e-commerce sites (1688, Taobao, Tmall, JD, etc.) embed product data
+      // in JS variables like window.__INIT_DATA, window.detailData, etc.
+      function extractEmbeddedData() {
+        const scripts = doc.querySelectorAll('script:not([src])');
+        const allData = [];
+
+        // Patterns for global variable assignments containing product data
+        const varPatterns = [
+          /window\.__INIT_DATA\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|let\s|const\s|$)/,
+          /window\.detailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
+          /window\.__data\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
+          /window\.rawData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
+          /window\.pageData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
+          /var\s+iDetailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|var\s|$)/,
+          /var\s+detailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|var\s|$)/,
+        ];
+
+        scripts.forEach(s => {
+          const text = s.textContent || '';
+          // Try known variable patterns
+          for (const pat of varPatterns) {
+            const m = text.match(pat);
+            if (m) {
+              try { allData.push(JSON.parse(m[1])); } catch {
+                // Try fixing common JS-to-JSON issues (single quotes, trailing commas)
+                try {
+                  let fixed = m[1].replace(/'/g, '"').replace(/,\s*([}\]])/g, '$1');
+                  allData.push(JSON.parse(fixed));
+                } catch {}
+              }
+            }
+          }
+          // Also try to find any large JSON object in script text (heuristic)
+          if (allData.length === 0 && text.length > 500) {
+            const jsonMatches = text.match(/[=:]\s*(\{"[^"]{2,}"[\s\S]{200,}?\})\s*[;,\n]/g);
+            if (jsonMatches) {
+              for (const jm of jsonMatches) {
+                const clean = jm.replace(/^[=:]\s*/, '').replace(/[;,\n]$/, '');
+                try { allData.push(JSON.parse(clean)); } catch {}
+              }
+            }
+          }
+        });
+
+        return allData;
+      }
+
+      // --- Helper: deep search a JS object for product-related fields ---
+      function deepFindProduct(obj, depth = 0) {
+        if (!obj || typeof obj !== 'object' || depth > 8) return {};
+        const result = {};
+
+        // Direct field matches for Chinese e-commerce platforms
+        const titleKeys = ['subject', 'title', 'name', 'productName', 'goodsName',
+          'itemTitle', 'offerTitle', 'skuTitle', 'subjectTrans'];
+        const imageKeys = ['imageList', 'images', 'imgList', 'imgUrl', 'imageUrl',
+          'mainImages', 'productImage', 'picUrl', 'imgURI', 'originalImageURI',
+          'offerImageList', 'detailImageList', 'carouselImageList'];
+        const priceKeys = ['price', 'priceText', 'priceRange', 'salePrice',
+          'currentPrice', 'retailPrice', 'originalPrice', 'formatedPrice'];
+        const descKeys = ['description', 'desc', 'detail', 'content', 'productDesc',
+          'itemDesc', 'detailDesc'];
+
+        // Check all keys at current level
+        for (const [key, val] of Object.entries(obj)) {
+          const k = key.toLowerCase ? key.toLowerCase() : key;
+
+          // Title
+          if (!result.title && titleKeys.some(tk => k === tk.toLowerCase()) && typeof val === 'string' && val.length > 1) {
+            result.title = val;
+          }
+
+          // Images — can be array of strings or array of objects
+          if (!result.images && imageKeys.some(ik => k === ik.toLowerCase())) {
+            if (Array.isArray(val)) {
+              const imgs = val.map(v => typeof v === 'string' ? v : (v.url || v.src || v.imgUrl || v.imageUrl || v.fullPathImageURI || v.originalImageURI || '')).filter(Boolean);
+              if (imgs.length) result.images = imgs;
+            } else if (typeof val === 'string' && (val.includes('.jpg') || val.includes('.png') || val.includes('.webp') || val.includes('alicdn'))) {
+              result.images = [val];
+            }
+          }
+
+          // Price
+          if (!result.price && priceKeys.some(pk => k === pk.toLowerCase())) {
+            if (typeof val === 'number') result.price = String(val);
+            else if (typeof val === 'string') {
+              const pm = val.match(/([\d,.]+)/);
+              if (pm) result.price = pm[1];
+            } else if (Array.isArray(val) && val.length) {
+              // Price range array, take first
+              const first = val[0];
+              if (typeof first === 'number') result.price = String(first);
+              else if (typeof first === 'string') { const pm = first.match(/([\d,.]+)/); if (pm) result.price = pm[1]; }
+              else if (first && first.price) result.price = String(first.price);
+            }
+          }
+
+          // Description
+          if (!result.desc && descKeys.some(dk => k === dk.toLowerCase()) && typeof val === 'string' && val.length > 10) {
+            // Strip HTML tags from descriptions
+            result.desc = val.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          }
+        }
+
+        // Recurse into nested objects if we haven't found everything
+        if (!result.title || !result.images || !result.price) {
+          for (const val of Object.values(obj)) {
+            if (val && typeof val === 'object') {
+              const nested = deepFindProduct(val, depth + 1);
+              if (!result.title && nested.title) result.title = nested.title;
+              if (!result.images && nested.images) result.images = nested.images;
+              if (!result.price && nested.price) result.price = nested.price;
+              if (!result.desc && nested.desc) result.desc = nested.desc;
+            }
+            if (result.title && result.images && result.price && result.desc) break;
+          }
+        }
+
+        return result;
+      }
+
+      // --- Helper: extract image URLs from raw HTML text via regex ---
+      // Catches alicdn, tbcdn, jd, etc. image URLs even if buried in JS/JSON strings
+      function extractImageUrlsFromRawHtml(html) {
+        const urls = [];
+        const seen = new Set();
+        // Match common Chinese e-commerce CDN image URLs
+        const patterns = [
+          /https?:\/\/[a-z0-9.-]*(?:alicdn|tbcdn|1688|taobao|tmall|jd|360buyimg|pinimg)[a-z0-9.-]*\/[^\s"'<>{}()\\]+\.(?:jpg|jpeg|png|webp)/gi,
+          /\/\/[a-z0-9.-]*(?:alicdn|tbcdn)[a-z0-9.-]*\/[^\s"'<>{}()\\]+\.(?:jpg|jpeg|png|webp)/gi,
+        ];
+        for (const pat of patterns) {
+          let m;
+          while ((m = pat.exec(html)) !== null) {
+            let url = m[0];
+            // Clean up escaped characters from JSON strings
+            url = url.replace(/\\\//g, '/');
+            if (url.startsWith('//')) url = 'https:' + url;
+            // Skip tiny thumbnails (common patterns: _50x50, .30x30., sum_)
+            if (/[._]\d{1,2}x\d{1,2}[._]/.test(url)) continue;
+            if (/sum_\d/.test(url)) continue;
+            if (!seen.has(url)) { seen.add(url); urls.push(url); }
+          }
+        }
+        return urls;
+      }
+
+      // Execute embedded data extraction
+      const embeddedDataList = extractEmbeddedData();
+      let embeddedProduct = {};
+      for (const data of embeddedDataList) {
+        const found = deepFindProduct(data);
+        if (found.title && !embeddedProduct.title) embeddedProduct.title = found.title;
+        if (found.images && !embeddedProduct.images) embeddedProduct.images = found.images;
+        if (found.price && !embeddedProduct.price) embeddedProduct.price = found.price;
+        if (found.desc && !embeddedProduct.desc) embeddedProduct.desc = found.desc;
+      }
+
+      // Also extract image URLs from raw HTML (catches URLs in JS strings)
+      const rawHtmlImages = extractImageUrlsFromRawHtml(html);
+
       // =========================
       // EXTRACT IMAGES (multi-strategy)
       // =========================
@@ -1375,6 +1537,11 @@
       function addImg(src) {
         src = resolveUrl(src);
         if (src && !seen.has(src)) { seen.add(src); imgSrcs.push(src); }
+      }
+
+      // Strategy 0: Embedded JS data images (1688, Taobao, etc.)
+      if (embeddedProduct.images) {
+        embeddedProduct.images.forEach(src => addImg(src));
       }
 
       // Strategy 1: JSON-LD images
@@ -1463,10 +1630,17 @@
         } catch {}
       });
 
+      // Strategy 9: Raw HTML regex for CDN image URLs (catches alicdn, tbcdn, etc.)
+      if (imgSrcs.length < 5) {
+        rawHtmlImages.forEach(src => addImg(src));
+      }
+
       // =========================
       // EXTRACT TITLE (multi-strategy)
       // =========================
       let title = '';
+      // Embedded JS data (1688, Taobao, etc.)
+      if (embeddedProduct.title) title = embeddedProduct.title;
       // JSON-LD
       if (jsonLd && jsonLd.name) title = jsonLd.name;
       // Open Graph
@@ -1493,8 +1667,10 @@
       // EXTRACT DESCRIPTION (multi-strategy)
       // =========================
       let desc = '';
+      // Embedded JS data (1688, Taobao, etc.)
+      if (embeddedProduct.desc) desc = embeddedProduct.desc;
       // JSON-LD
-      if (jsonLd && jsonLd.description) desc = jsonLd.description;
+      if (!desc && jsonLd && jsonLd.description) desc = jsonLd.description;
       // Open Graph
       if (!desc) desc = getMeta('og:description');
       // Meta description
@@ -1525,8 +1701,10 @@
       // EXTRACT PRICE (multi-strategy)
       // =========================
       let price = '';
+      // Embedded JS data (1688, Taobao, etc.)
+      if (embeddedProduct.price) price = embeddedProduct.price;
       // JSON-LD offers.price
-      if (jsonLd) {
+      if (!price && jsonLd) {
         const offers = jsonLd.offers;
         if (offers) {
           if (Array.isArray(offers)) {
@@ -1672,7 +1850,14 @@
       if (color) stats.push('color');
       if (width && height) stats.push('dimensions');
       if (category) stats.push('category');
-      showToast(`Extracted: ${stats.join(', ') || 'no data found — try a different page source'}`);
+      // Show data sources used
+      const sources = [];
+      if (embeddedProduct.title || embeddedProduct.images) sources.push('embedded JS');
+      if (jsonLd) sources.push('JSON-LD');
+      if (getMeta('og:title') || getMeta('og:image')) sources.push('OpenGraph');
+      if (rawHtmlImages.length) sources.push('CDN regex');
+      const srcNote = sources.length ? ` [via ${sources.join('+')}]` : '';
+      showToast(`Extracted: ${stats.join(', ') || 'no data found — try a different page source'}${srcNote}`);
     } catch (err) {
       showToast('Failed to parse HTML: ' + err.message, 'error');
     }
