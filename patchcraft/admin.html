@@ -130,7 +130,7 @@
   .wc-images { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
   .wc-images .wc-img-item {
     width: 80px; height: 80px; border: 2px solid var(--border); border-radius: 6px;
-    overflow: hidden; cursor: pointer; position: relative; transition: border-color 0.2s;
+    overflow: visible; cursor: pointer; position: relative; transition: border-color 0.2s;
   }
   .wc-images .wc-img-item:hover { border-color: var(--coral); }
   .wc-images .wc-img-item.selected { border-color: var(--coral); border-width: 3px; }
@@ -138,7 +138,37 @@
     content: '\2713'; position: absolute; top: 2px; right: 4px;
     color: var(--coral); font-weight: 700; font-size: 14px;
   }
-  .wc-images .wc-img-item img { width: 100%; height: 100%; object-fit: contain; background: var(--blush); }
+  .wc-images .wc-img-item img { width: 100%; height: 100%; object-fit: contain; background: var(--blush); border-radius: 4px; }
+  .wc-images .wc-img-item .wc-role-tag {
+    position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+    padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;
+    color: white; white-space: nowrap; z-index: 2; pointer-events: none;
+  }
+  .wc-images .wc-img-item .wc-role-tag.front { background: #3B82F6; }
+  .wc-images .wc-img-item .wc-role-tag.back { background: #10B981; }
+  .wc-images .wc-img-item .wc-role-tag.main { background: #8B5CF6; }
+  .wc-images .wc-img-item .wc-edit-btn {
+    position: absolute; bottom: -6px; right: -6px; width: 20px; height: 20px;
+    background: var(--coral); color: white; border: none; border-radius: 50%;
+    font-size: 11px; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; z-index: 2; opacity: 0; transition: opacity 0.15s;
+  }
+  .wc-images .wc-img-item:hover .wc-edit-btn { opacity: 1; }
+  .wc-images .wc-img-item .wc-img-fail {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--text-light); padding: 4px; word-break: break-all;
+    text-align: center; background: var(--blush); border-radius: 4px;
+  }
+  .wc-role-assign { display: flex; gap: 12px; margin: 10px 0; flex-wrap: wrap; }
+  .wc-role-slot {
+    border: 2px dashed var(--border); border-radius: 6px; padding: 8px;
+    text-align: center; min-width: 100px; cursor: pointer; transition: border-color 0.2s;
+  }
+  .wc-role-slot:hover { border-color: var(--coral); }
+  .wc-role-slot.active { border-color: var(--coral); border-style: solid; background: #fff5f3; }
+  .wc-role-slot label { font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 4px; pointer-events: none; }
+  .wc-role-slot img { width: 60px; height: 60px; object-fit: contain; border-radius: 4px; }
+  .wc-role-slot .empty-hint { font-size: 0.7rem; color: var(--text-light); }
   .wc-field { margin-bottom: 10px; }
   .wc-field label { font-size: 0.8rem; font-weight: 500; color: var(--text-light); display: block; margin-bottom: 3px; }
 
@@ -290,13 +320,35 @@
         <div class="wc-step-title">2. Review Extracted Data</div>
         <div class="wc-extracted">
           <div class="wc-field">
-            <label>Detected Images (click to select for product)</label>
+            <label>Detected Images — click to add to gallery, then assign roles below</label>
             <div class="wc-images" id="wc-images"></div>
             <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
               <input class="form-control" id="wc-add-img-url" placeholder="Manually add image URL..." style="flex:1;font-size:0.8rem">
               <button class="btn btn-outline btn-sm" id="wc-add-img-btn" style="white-space:nowrap">+ Add</button>
             </div>
           </div>
+
+          <!-- Image Role Assignment -->
+          <div class="wc-field">
+            <label>Image Roles — click a role slot then click an image above to assign</label>
+            <div class="wc-role-assign" id="wc-role-assign">
+              <div class="wc-role-slot" data-role="front" id="wc-slot-front">
+                <label style="color:#3B82F6">Front Image</label>
+                <div class="empty-hint">Click to assign</div>
+              </div>
+              <div class="wc-role-slot" data-role="back" id="wc-slot-back">
+                <label style="color:#10B981">Back Image</label>
+                <div class="empty-hint">Click to assign</div>
+              </div>
+            </div>
+            <div class="wc-role-assign" id="wc-role-assign-patch" style="display:none">
+              <div class="wc-role-slot" data-role="main" id="wc-slot-main">
+                <label style="color:#8B5CF6">Main Image</label>
+                <div class="empty-hint">Click to assign</div>
+              </div>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="wc-field"><label>Product Name</label><input class="form-control" id="wc-name"></div>
             <div class="wc-field"><label>Name (CN)</label><input class="form-control" id="wc-name-zh"></div>
@@ -305,7 +357,7 @@
           <div class="form-row-3">
             <div class="wc-field"><label>Width (mm)</label><input class="form-control" id="wc-width" type="number"></div>
             <div class="wc-field"><label>Height (mm)</label><input class="form-control" id="wc-height" type="number"></div>
-            <div class="wc-field"><label>Price ($)</label><input class="form-control" id="wc-price" type="number" step="0.01"></div>
+            <div class="wc-field"><label>Price (¥)</label><input class="form-control" id="wc-price" type="number" step="0.01"></div>
           </div>
           <div class="form-row">
             <div class="wc-field"><label>Color</label><input class="form-control" id="wc-color"></div>
@@ -727,6 +779,8 @@
     const prev = document.getElementById('prev-' + target);
     if (!prev) return;
     prev.src = src; prev.classList.remove('hidden');
+    prev.referrerPolicy = 'no-referrer';
+    prev.crossOrigin = 'anonymous';
     prev.parentElement.querySelector('.upload-text').style.display = 'none';
     // Show BG removal button
     const bgrBtn = prev.closest('.form-group').querySelector('.bgr-btn');
@@ -766,10 +820,16 @@
     galleryImages.forEach((src, i) => {
       const div = document.createElement('div');
       div.className = 'g-thumb';
-      div.innerHTML = `<img src="${src}"><button type="button" class="g-remove" data-gi="${i}">&times;</button>`;
+      div.style.position = 'relative';
+      div.innerHTML = `<img src="${src}" referrerpolicy="no-referrer" crossorigin="anonymous"><button type="button" class="g-remove" data-gi="${i}">&times;</button><button type="button" class="g-edit" data-gi="${i}" style="position:absolute;bottom:2px;left:2px;width:18px;height:18px;border-radius:50%;border:none;background:var(--coral);color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Edit image">&#9998;</button>`;
       div.querySelector('.g-remove').addEventListener('click', () => {
         galleryImages.splice(i, 1);
         renderGalleryThumbs();
+      });
+      div.querySelector('.g-edit').addEventListener('click', () => {
+        bgrTarget = '__gallery__';
+        window.__galleryEditIdx = i;
+        openImageEditor(src);
       });
       area.insertBefore(div, addBtn);
     });
@@ -813,8 +873,7 @@
     iedTool = 'wand';
     updateIedToolbar();
 
-    const img = new Image();
-    img.onload = () => {
+    function loadToCanvas(img) {
       let w = img.width, h = img.height;
       const maxDim = 600;
       if (w > maxDim || h > maxDim) {
@@ -826,8 +885,32 @@
       bgrOriginalData = bgrCtx.getImageData(0, 0, w, h);
       bgrCanvas.style.cursor = 'crosshair';
       modal.classList.add('open');
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      try {
+        loadToCanvas(img);
+      } catch (e) {
+        // Canvas tainted — try blob fallback
+        tryBlobFallback(src, loadToCanvas);
+      }
     };
+    img.onerror = () => tryBlobFallback(src, loadToCanvas);
     img.src = src;
+  }
+
+  function tryBlobFallback(src, loadToCanvas) {
+    fetch(src, { mode: 'cors', referrerPolicy: 'no-referrer' })
+      .then(r => r.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const img2 = new Image();
+        img2.onload = () => { loadToCanvas(img2); URL.revokeObjectURL(url); };
+        img2.onerror = () => { URL.revokeObjectURL(url); showToast('Cannot load image for editing (CORS). Download image first.', 'error'); };
+        img2.src = url;
+      }).catch(() => showToast('Cannot load image for editing. Download image first.', 'error'));
   }
 
   // Tool switching
@@ -875,8 +958,30 @@
       }
       if (tool === 'apply') {
         const dataUrl = bgrCanvas.toDataURL('image/png');
-        imageData[bgrTarget] = dataUrl;
-        showPreview(bgrTarget, dataUrl);
+        if (bgrTarget === '__wc__') {
+          // Collector image edit — replace URL with edited data URL
+          const oldSrc = window.__wcEditingSrc;
+          if (oldSrc) {
+            const idx = wcAllImageSrcs.indexOf(oldSrc);
+            if (idx >= 0) wcAllImageSrcs[idx] = dataUrl;
+            if (wcSelectedImages.has(oldSrc)) { wcSelectedImages.delete(oldSrc); wcSelectedImages.add(dataUrl); }
+            if (wcImageRoles.front === oldSrc) wcImageRoles.front = dataUrl;
+            if (wcImageRoles.back === oldSrc) wcImageRoles.back = dataUrl;
+            if (wcImageRoles.main === oldSrc) wcImageRoles.main = dataUrl;
+            wcRenderImages();
+            wcRenderRoleSlots();
+          }
+        } else if (bgrTarget === '__gallery__') {
+          // Gallery image edit in form modal
+          const idx = window.__galleryEditIdx;
+          if (idx != null && idx >= 0 && idx < galleryImages.length) {
+            galleryImages[idx] = dataUrl;
+            renderGalleryThumbs();
+          }
+        } else {
+          imageData[bgrTarget] = dataUrl;
+          showPreview(bgrTarget, dataUrl);
+        }
         document.getElementById('bgr-modal').classList.remove('open');
         showToast('Image updated');
         return;
@@ -1305,10 +1410,17 @@
   // Web Collector
   // =====================
   let wcSelectedImages = new Set();
+  let wcRoleAssignMode = null; // null | 'front' | 'back' | 'main'
+  let wcImageRoles = { front: null, back: null, main: null }; // src strings
+  let wcAllImageSrcs = []; // track all extracted image srcs for role assignment
 
-  document.getElementById('wc-type').addEventListener('change', e => {
-    document.getElementById('wc-cat-field').style.display = e.target.value === 'patch' ? '' : 'none';
-  });
+  function wcUpdateTypeUI() {
+    const type = document.getElementById('wc-type').value;
+    document.getElementById('wc-cat-field').style.display = type === 'patch' ? '' : 'none';
+    document.getElementById('wc-role-assign').style.display = type === 'carrier' ? 'flex' : 'none';
+    document.getElementById('wc-role-assign-patch').style.display = type === 'patch' ? 'flex' : 'none';
+  }
+  document.getElementById('wc-type').addEventListener('change', wcUpdateTypeUI);
 
   document.getElementById('wc-extract').addEventListener('click', () => {
     const html = document.getElementById('wc-html').value.trim();
@@ -1370,46 +1482,87 @@
       // --- Helper: extract embedded JS data from <script> tags ---
       // Chinese e-commerce sites (1688, Taobao, Tmall, JD, etc.) embed product data
       // in JS variables like window.__INIT_DATA, window.detailData, etc.
+      // Extract balanced JSON object starting at position
+      function extractBalancedJson(text, startIdx) {
+        if (text[startIdx] !== '{') return null;
+        let depth = 0, inStr = false, escape = false;
+        for (let i = startIdx; i < text.length && i < startIdx + 500000; i++) {
+          const ch = text[i];
+          if (escape) { escape = false; continue; }
+          if (ch === '\\' && inStr) { escape = true; continue; }
+          if (ch === '"' && !escape) { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) return text.slice(startIdx, i + 1); }
+        }
+        return null;
+      }
+
       function extractEmbeddedData() {
         const scripts = doc.querySelectorAll('script:not([src])');
         const allData = [];
 
-        // Patterns for global variable assignments containing product data
-        const varPatterns = [
-          /window\.__INIT_DATA\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|let\s|const\s|$)/,
-          /window\.detailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
-          /window\.__data\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
-          /window\.rawData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
-          /window\.pageData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|window\.|var\s|$)/,
-          /var\s+iDetailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|var\s|$)/,
-          /var\s+detailData\s*=\s*(\{[\s\S]*?\});\s*(?:<\/script>|var\s|$)/,
+        // Variable names that commonly hold product data on Chinese e-commerce sites
+        const varNames = [
+          'window.__INIT_DATA', 'window.__APLUS_DATA', 'window.__data',
+          'window.detailData', 'window.rawData', 'window.pageData',
+          'window.globalData', 'window.__page_data', 'window.__detail_data',
+          'var iDetailData', 'var detailData', 'var offerData',
         ];
 
         scripts.forEach(s => {
           const text = s.textContent || '';
-          // Try known variable patterns
-          for (const pat of varPatterns) {
-            const m = text.match(pat);
+          if (text.length < 50) return;
+
+          // Strategy 1: Known variable patterns with balanced brace extraction
+          for (const varName of varNames) {
+            const pattern = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*=\\s*';
+            const regex = new RegExp(pattern);
+            const m = text.match(regex);
             if (m) {
-              try { allData.push(JSON.parse(m[1])); } catch {
-                // Try fixing common JS-to-JSON issues (single quotes, trailing commas)
+              const jsonStart = m.index + m[0].length;
+              if (text[jsonStart] === '{') {
+                const jsonStr = extractBalancedJson(text, jsonStart);
+                if (jsonStr) {
+                  try { allData.push(JSON.parse(jsonStr)); } catch {}
+                }
+              }
+            }
+          }
+
+          // Strategy 2: Find any large JSON assignment in script (heuristic)
+          // Match: = { ... } that looks like product data
+          if (allData.length === 0 && text.length > 200) {
+            const assignRegex = /=\s*\{/g;
+            let am;
+            while ((am = assignRegex.exec(text)) !== null) {
+              const braceStart = am.index + am[0].length - 1;
+              const jsonStr = extractBalancedJson(text, braceStart);
+              if (jsonStr && jsonStr.length > 200) {
                 try {
-                  let fixed = m[1].replace(/'/g, '"').replace(/,\s*([}\]])/g, '$1');
-                  allData.push(JSON.parse(fixed));
+                  const obj = JSON.parse(jsonStr);
+                  // Check if it looks like product data (has common keys)
+                  const keys = Object.keys(obj).join(',').toLowerCase();
+                  if (keys.match(/image|title|subject|price|offer|product|sku|desc/)) {
+                    allData.push(obj);
+                  }
                 } catch {}
               }
+              if (allData.length >= 3) break;
             }
           }
-          // Also try to find any large JSON object in script text (heuristic)
-          if (allData.length === 0 && text.length > 500) {
-            const jsonMatches = text.match(/[=:]\s*(\{"[^"]{2,}"[\s\S]{200,}?\})\s*[;,\n]/g);
-            if (jsonMatches) {
-              for (const jm of jsonMatches) {
-                const clean = jm.replace(/^[=:]\s*/, '').replace(/[;,\n]$/, '');
-                try { allData.push(JSON.parse(clean)); } catch {}
-              }
+        });
+
+        // Strategy 3: Also search raw HTML for inline JSON in data attributes
+        const dataScripts = doc.querySelectorAll('[data-page-data], [data-detail], [data-config]');
+        dataScripts.forEach(el => {
+          const attrs = ['data-page-data', 'data-detail', 'data-config'];
+          attrs.forEach(attr => {
+            const val = el.getAttribute(attr);
+            if (val && val.startsWith('{')) {
+              try { allData.push(JSON.parse(val)); } catch {}
             }
-          }
+          });
         });
 
         return allData;
@@ -1647,12 +1800,17 @@
       if (!title) title = getMeta('og:title');
       // Microdata
       if (!title) title = getMicrodata('name');
-      // Common product title selectors
+      // Common product title selectors (including Chinese e-commerce)
       if (!title) {
         const titleSels = ['h1.product-title', 'h1.product-name', '.product-title h1',
           '.product-name', '.product_title', '#product-name', '#productTitle',
           '[data-product-title]', '.goods-name', '.item-title',
-          '.tb-main-title', '.ItemHeader-title', 'h1'];
+          '.tb-main-title', '.ItemHeader-title',
+          '.d-title', '.detail-title', '.offer-title',
+          '.mod-detail-title h1', '.mod-detail-title',
+          '.title-text', '.main-title', '.sku-title',
+          '[class*="offerTitle"]', '[class*="detailTitle"]',
+          'h1'];
         for (const sel of titleSels) {
           const el = doc.querySelector(sel);
           if (el && el.textContent.trim()) { title = el.textContent.trim(); break; }
@@ -1661,7 +1819,9 @@
       // Fallback to <title>
       if (!title) title = doc.querySelector('title')?.textContent?.trim() || '';
       // Clean up: remove site name suffix
-      title = title.replace(/\s*[\|\-–—]\s*(Amazon|eBay|AliExpress|Taobao|Tmall|JD|Etsy|Shopify).*$/i, '').trim();
+      title = title.replace(/\s*[\|\-–—]\s*(Amazon|eBay|AliExpress|Taobao|Tmall|JD|Etsy|Shopify|1688|阿里巴巴|淘宝|天猫|京东|拼多多).*$/i, '').trim();
+      // Remove common 1688 suffix patterns
+      title = title.replace(/\s*-\s*阿里巴巴.*$/, '').replace(/\s*-\s*1688\.com.*$/i, '').trim();
 
       // =========================
       // EXTRACT DESCRIPTION (multi-strategy)
@@ -1677,12 +1837,14 @@
       if (!desc) desc = getMeta('description');
       // Microdata
       if (!desc) desc = getMicrodata('description');
-      // Common description selectors
+      // Common description selectors (including Chinese e-commerce)
       if (!desc) {
         const descSels = ['.product-description', '.product-desc', '#product-description',
           '.item-desc', '.goods-desc', '.detail-desc', '.product-details',
           '[data-product-description]', '.description-content',
-          '.ProductDescription', '.product_desc'];
+          '.ProductDescription', '.product_desc',
+          '.mod-detail-description', '.offer-description', '.detail-description',
+          '[class*="offerDesc"]', '[class*="detailDesc"]'];
         for (const sel of descSels) {
           const el = doc.querySelector(sel);
           if (el && el.textContent.trim().length > 20) { desc = el.textContent.trim(); break; }
@@ -1814,24 +1976,11 @@
       // Show results
       // =========================
       document.getElementById('wc-results').classList.remove('hidden');
-      const imagesDiv = document.getElementById('wc-images');
-      imagesDiv.innerHTML = '';
+      wcUpdateTypeUI();
+      wcResetRoles();
       wcSelectedImages.clear();
-
-      if (imgSrcs.length === 0) {
-        imagesDiv.innerHTML = '<span style="color:var(--text-light);font-size:0.8rem">No images found. You can add images manually after saving the draft.</span>';
-      } else {
-        imgSrcs.slice(0, 30).forEach((src, i) => {
-          const item = document.createElement('div');
-          item.className = 'wc-img-item';
-          item.innerHTML = `<img src="${src}" alt="" onerror="this.parentElement.remove()">`;
-          item.addEventListener('click', () => {
-            if (wcSelectedImages.has(src)) { wcSelectedImages.delete(src); item.classList.remove('selected'); }
-            else { wcSelectedImages.add(src); item.classList.add('selected'); }
-          });
-          imagesDiv.appendChild(item);
-        });
-      }
+      wcAllImageSrcs = imgSrcs.slice(0, 30);
+      wcRenderImages();
 
       document.getElementById('wc-name').value = title;
       document.getElementById('wc-name-zh').value = '';
@@ -1850,7 +1999,6 @@
       if (color) stats.push('color');
       if (width && height) stats.push('dimensions');
       if (category) stats.push('category');
-      // Show data sources used
       const sources = [];
       if (embeddedProduct.title || embeddedProduct.images) sources.push('embedded JS');
       if (jsonLd) sources.push('JSON-LD');
@@ -1863,21 +2011,192 @@
     }
   });
 
+  // --- Image rendering with role tags and edit buttons ---
+  function wcRenderImages() {
+    const imagesDiv = document.getElementById('wc-images');
+    imagesDiv.innerHTML = '';
+    if (wcAllImageSrcs.length === 0) {
+      imagesDiv.innerHTML = '<span style="color:var(--text-light);font-size:0.8rem">No images found. Add image URLs manually below.</span>';
+      return;
+    }
+    wcAllImageSrcs.forEach(src => {
+      const item = document.createElement('div');
+      item.className = 'wc-img-item' + (wcSelectedImages.has(src) ? ' selected' : '');
+      item.dataset.src = src;
+
+      // Role tag
+      const roleTag = wcGetRoleTag(src);
+      const tagHtml = roleTag ? `<span class="wc-role-tag ${roleTag.cls}">${roleTag.label}</span>` : '';
+
+      item.innerHTML = `${tagHtml}<img src="${src}" alt="" referrerpolicy="no-referrer" crossorigin="anonymous" onerror="wcImgError(this)"><button class="wc-edit-btn" title="Edit image">&#9998;</button>`;
+
+      // Click: if in role assign mode, assign role; otherwise toggle gallery selection
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('wc-edit-btn')) return; // handled separately
+        if (wcRoleAssignMode) {
+          wcAssignRole(wcRoleAssignMode, src);
+          wcRoleAssignMode = null;
+          wcClearSlotActive();
+          wcRenderImages();
+          wcRenderRoleSlots();
+          return;
+        }
+        if (wcSelectedImages.has(src)) { wcSelectedImages.delete(src); }
+        else { wcSelectedImages.add(src); }
+        wcRenderImages();
+      });
+
+      // Edit button: open image editor
+      item.querySelector('.wc-edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        wcOpenEditor(src);
+      });
+
+      imagesDiv.appendChild(item);
+    });
+  }
+
+  // Handle broken images (hotlink protection)
+  window.wcImgError = function(img) {
+    const item = img.parentElement;
+    const src = item.dataset.src || '';
+    const shortUrl = src.length > 30 ? '...' + src.slice(-28) : src;
+    img.remove();
+    const fallback = document.createElement('div');
+    fallback.className = 'wc-img-fail';
+    fallback.textContent = shortUrl;
+    fallback.title = src;
+    item.insertBefore(fallback, item.querySelector('.wc-edit-btn'));
+  };
+
+  // Role management
+  function wcGetRoleTag(src) {
+    if (wcImageRoles.front === src) return { cls: 'front', label: 'Front' };
+    if (wcImageRoles.back === src) return { cls: 'back', label: 'Back' };
+    if (wcImageRoles.main === src) return { cls: 'main', label: 'Main' };
+    return null;
+  }
+
+  function wcAssignRole(role, src) {
+    // Clear if same src already assigned to this role
+    if (wcImageRoles[role] === src) { wcImageRoles[role] = null; return; }
+    // Clear src from other roles
+    for (const r of ['front', 'back', 'main']) {
+      if (wcImageRoles[r] === src) wcImageRoles[r] = null;
+    }
+    wcImageRoles[role] = src;
+    // Also ensure it's selected
+    wcSelectedImages.add(src);
+  }
+
+  function wcResetRoles() {
+    wcImageRoles = { front: null, back: null, main: null };
+    wcRoleAssignMode = null;
+    wcClearSlotActive();
+    wcRenderRoleSlots();
+  }
+
+  function wcClearSlotActive() {
+    document.querySelectorAll('.wc-role-slot').forEach(s => s.classList.remove('active'));
+  }
+
+  function wcRenderRoleSlots() {
+    ['front', 'back', 'main'].forEach(role => {
+      const slot = document.getElementById('wc-slot-' + role);
+      if (!slot) return;
+      const src = wcImageRoles[role];
+      if (src) {
+        slot.innerHTML = `<label style="color:${role==='front'?'#3B82F6':role==='back'?'#10B981':'#8B5CF6'}">${role==='main'?'Main':role==='front'?'Front':'Back'} Image</label><img src="${src}" referrerpolicy="no-referrer" crossorigin="anonymous" onerror="this.style.display='none'"><div style="font-size:0.65rem;color:var(--text-light);margin-top:2px">Click to change</div>`;
+      } else {
+        slot.innerHTML = `<label style="color:${role==='front'?'#3B82F6':role==='back'?'#10B981':'#8B5CF6'}">${role==='main'?'Main':role==='front'?'Front':'Back'} Image</label><div class="empty-hint">Click, then pick image above</div>`;
+      }
+    });
+  }
+
+  // Role slot click handlers
+  document.querySelectorAll('.wc-role-slot').forEach(slot => {
+    slot.addEventListener('click', () => {
+      const role = slot.dataset.role;
+      wcClearSlotActive();
+      if (wcRoleAssignMode === role) { wcRoleAssignMode = null; return; }
+      wcRoleAssignMode = role;
+      slot.classList.add('active');
+      showToast(`Now click an image above to set as ${role === 'main' ? 'Main' : role === 'front' ? 'Front' : 'Back'} image`);
+    });
+  });
+
+  // --- Image editor for collector images ---
+  function wcOpenEditor(src) {
+    // Use the existing image editor infrastructure
+    const modal = document.getElementById('bgr-modal');
+    bgrCanvas = document.getElementById('bgr-canvas');
+    bgrCtx = bgrCanvas.getContext('2d', { willReadFrequently: true });
+    iedTool = 'wand';
+    updateIedToolbar();
+
+    // Store which collector image we're editing
+    bgrTarget = '__wc__';
+    window.__wcEditingSrc = src;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const maxDim = 600;
+      if (w > maxDim || h > maxDim) {
+        const sc = maxDim / Math.max(w, h);
+        w = Math.round(w * sc); h = Math.round(h * sc);
+      }
+      bgrCanvas.width = w; bgrCanvas.height = h;
+      bgrCtx.drawImage(img, 0, 0, w, h);
+      bgrOriginalData = bgrCtx.getImageData(0, 0, w, h);
+      bgrCanvas.style.cursor = 'crosshair';
+      modal.classList.add('open');
+    };
+
+    img.onerror = () => {
+      // CORS blocked — try fetching as blob
+      fetch(src, { mode: 'cors', referrerPolicy: 'no-referrer' })
+        .then(r => r.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob);
+          const img2 = new Image();
+          img2.onload = () => {
+            let w = img2.width, h = img2.height;
+            const maxDim = 600;
+            if (w > maxDim || h > maxDim) { const sc = maxDim/Math.max(w,h); w=Math.round(w*sc); h=Math.round(h*sc); }
+            bgrCanvas.width = w; bgrCanvas.height = h;
+            bgrCtx.drawImage(img2, 0, 0, w, h);
+            bgrOriginalData = bgrCtx.getImageData(0, 0, w, h);
+            bgrCanvas.style.cursor = 'crosshair';
+            modal.classList.add('open');
+            URL.revokeObjectURL(url);
+          };
+          img2.onerror = () => {
+            URL.revokeObjectURL(url);
+            showToast('Cannot load this image for editing. Try downloading it first, then use the form editor.', 'error');
+          };
+          img2.src = url;
+        })
+        .catch(() => {
+          showToast('Cannot load this image for editing (CORS blocked). Download the image first.', 'error');
+        });
+    };
+
+    img.src = src;
+  }
+
+  // Override the Apply button to handle collector image edits
+  const origApplyHandler = document.querySelector('.ied-toolbar button[data-tool="apply"]');
+
   document.getElementById('wc-add-img-btn').addEventListener('click', () => {
     const url = document.getElementById('wc-add-img-url').value.trim();
     if (!url) return;
-    const imagesDiv = document.getElementById('wc-images');
-    // Remove "no images" message if present
-    if (!imagesDiv.querySelector('.wc-img-item')) imagesDiv.innerHTML = '';
-    const item = document.createElement('div');
-    item.className = 'wc-img-item selected';
-    item.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.remove()">`;
+    if (!wcAllImageSrcs.includes(url)) wcAllImageSrcs.push(url);
     wcSelectedImages.add(url);
-    item.addEventListener('click', () => {
-      if (wcSelectedImages.has(url)) { wcSelectedImages.delete(url); item.classList.remove('selected'); }
-      else { wcSelectedImages.add(url); item.classList.add('selected'); }
-    });
-    imagesDiv.appendChild(item);
+    wcRenderImages();
     document.getElementById('wc-add-img-url').value = '';
   });
 
@@ -1890,17 +2209,18 @@
     const realHeight = parseFloat(document.getElementById('wc-height').value) || 50;
     const price = parseFloat(document.getElementById('wc-price').value) || 0;
     const color = document.getElementById('wc-color').value.trim();
-    const gallery = [...wcSelectedImages];
+    const selectedImgs = [...wcSelectedImages];
 
     if (!name) return showToast('Please enter a product name', 'error');
 
     if (type === 'carrier') {
-      const frontImage = gallery[0] || '';
-      const backImage = gallery[1] || '';
+      const frontImage = wcImageRoles.front || selectedImgs[0] || '';
+      const backImage = wcImageRoles.back || selectedImgs[1] || '';
+      // Gallery = selected images minus front and back
+      const gallery = selectedImgs.filter(s => s !== frontImage && s !== backImage);
       DB.Carriers.add({
         name, nameZh, description, descriptionZh: '',
-        frontImage, backImage,
-        gallery: gallery.slice(2),
+        frontImage, backImage, gallery,
         realWidth, realHeight, price, color,
         patchArea: { x: 10, y: 10, w: realWidth - 20, h: realHeight - 20 },
         backPatchArea: { x: 10, y: 10, w: realWidth - 20, h: realHeight - 20 },
@@ -1910,11 +2230,11 @@
       showToast('Carrier saved as draft! Go to Carriers to edit and publish.');
     } else {
       const category = document.getElementById('wc-cat').value.trim();
-      const image = gallery[0] || '';
+      const image = wcImageRoles.main || selectedImgs[0] || '';
+      const gallery = selectedImgs.filter(s => s !== image);
       DB.Patches.add({
         name, nameZh, description, descriptionZh: '',
-        image,
-        gallery: gallery.slice(1),
+        image, gallery,
         realWidth, realHeight, price, color, category,
         status: 'draft',
         sourceUrl: document.getElementById('wc-url').value.trim(),
@@ -1926,6 +2246,7 @@
     document.getElementById('wc-html').value = '';
     document.getElementById('wc-results').classList.add('hidden');
     wcSelectedImages.clear();
+    wcResetRoles();
   });
 
   document.getElementById('wc-reset').addEventListener('click', () => {
@@ -1933,6 +2254,7 @@
     document.getElementById('wc-url').value = '';
     document.getElementById('wc-results').classList.add('hidden');
     wcSelectedImages.clear();
+    wcResetRoles();
   });
 })();
 </script>
