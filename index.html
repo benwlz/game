@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FitLog · 健身追踪</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --card: #1a1d27;
+  --border: #2a2d3a;
+  --primary: #6c5ce7;
+  --primary-light: #a29bfe;
+  --accent: #00cec9;
+  --danger: #ff6b6b;
+  --text: #e2e8f0;
+  --text-dim: #8892a4;
+  --success: #00b894;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+/* ===== Top Nav ===== */
+.top-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(15,17,23,.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.logo span { color: var(--primary-light); }
+.mode-switch {
+  display: flex; gap: 4px; background: var(--card); border-radius: 8px; padding: 3px;
+}
+.mode-btn {
+  padding: 6px 14px; border-radius: 6px; border: none;
+  background: transparent; color: var(--text-dim); cursor: pointer;
+  font-size: 13px; font-weight: 500; transition: all .2s;
+}
+.mode-btn.active { background: var(--primary); color: #fff; }
+
+/* ===== Tab Nav ===== */
+.tab-nav {
+  display: flex; gap: 0; padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn {
+  padding: 12px 18px; border: none; background: none;
+  color: var(--text-dim); font-size: 14px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; position: relative; transition: color .2s;
+}
+.tab-btn.active { color: var(--primary-light); }
+.tab-btn.active::after {
+  content: ''; position: absolute; bottom: 0; left: 12px; right: 12px;
+  height: 2px; background: var(--primary); border-radius: 2px;
+}
+
+/* ===== Container ===== */
+.container { max-width: 640px; margin: 0 auto; padding: 16px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ===== Cards ===== */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+}
+.card-title {
+  font-size: 13px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+}
+
+/* ===== Form Elements ===== */
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 15px; outline: none; transition: border-color .2s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+.form-textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+.form-row { display: flex; gap: 10px; }
+.form-row > * { flex: 1; }
+.form-input-sm { width: 80px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; text-align: center; outline: none; }
+.form-input-sm:focus { border-color: var(--primary); }
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border-radius: 8px; border: none;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #5a4bd1; }
+.btn-accent { background: var(--accent); color: #000; }
+.btn-accent:hover { background: #00b5b0; }
+.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--text-dim); }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+.btn + .btn { margin-left: 8px; }
+
+/* ===== Quick Tags ===== */
+.quick-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.quick-tag {
+  padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim); font-size: 12px;
+  cursor: pointer; transition: all .15s;
+}
+.quick-tag:hover, .quick-tag.selected { border-color: var(--primary); color: var(--primary-light); background: rgba(108,92,231,.1); }
+
+/* ===== Exercise Block ===== */
+.exercise-block {
+  background: var(--bg); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; border: 1px solid var(--border);
+}
+.exercise-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+}
+.exercise-name-input {
+  flex: 1; border: none; background: transparent; color: var(--text);
+  font-size: 15px; font-weight: 600; outline: none; padding: 4px 0;
+}
+.exercise-name-input::placeholder { color: var(--text-dim); font-weight: 400; }
+.set-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;
+}
+.set-label { color: var(--text-dim); width: 40px; font-weight: 500; }
+.unit-label { color: var(--text-dim); font-size: 12px; }
+.remove-btn {
+  width: 24px; height: 24px; border-radius: 50%; border: none;
+  background: rgba(255,107,107,.1); color: var(--danger);
+  cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+}
+
+/* ===== Records List ===== */
+.record-item {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+  cursor: pointer; transition: border-color .2s;
+}
+.record-item:hover { border-color: var(--primary); }
+.record-date { font-size: 13px; color: var(--primary-light); font-weight: 600; margin-bottom: 4px; }
+.record-summary { font-size: 14px; color: var(--text); margin-bottom: 6px; }
+.record-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.record-tag {
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;
+  background: rgba(108,92,231,.15); color: var(--primary-light);
+}
+.record-tag.test { background: rgba(0,206,201,.15); color: var(--accent); }
+
+/* ===== Detail Modal ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  z-index: 200; display: none; align-items: flex-end; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card); border-radius: 16px 16px 0 0;
+  width: 100%; max-width: 640px; max-height: 85vh;
+  overflow-y: auto; padding: 20px; animation: slideUp .25s ease-out;
+}
+@keyframes slideUp { from { transform: translateY(100%); } }
+.modal-handle {
+  width: 36px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 0 auto 16px;
+}
+.modal h3 { font-size: 18px; margin-bottom: 16px; }
+.detail-section { margin-bottom: 14px; }
+.detail-label { font-size: 12px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.detail-table { width: 100%; font-size: 13px; }
+.detail-table th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 4px 8px 4px 0; }
+.detail-table td { padding: 4px 8px 4px 0; }
+
+/* ===== Charts ===== */
+.chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.chart-card h4 { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; }
+.chart-wrapper { position: relative; height: 220px; }
+
+/* ===== Empty State ===== */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: .5; }
+.empty-state p { font-size: 14px; }
+
+/* ===== Data Bar ===== */
+.data-bar { display: flex; gap: 8px; margin-bottom: 16px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ===== Metric Cards ===== */
+.metrics-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.metric-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px; text-align: center;
+}
+.metric-value { font-size: 24px; font-weight: 700; color: var(--primary-light); }
+.metric-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.metric-change { font-size: 11px; margin-top: 4px; }
+.metric-change.up { color: var(--success); }
+.metric-change.down { color: var(--danger); }
+
+/* ===== Comparison Table ===== */
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compare-table th, .compare-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
+.compare-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
+.compare-table .change-up { color: var(--success); }
+.compare-table .change-down { color: var(--danger); }
+
+/* ===== Responsive ===== */
+@media (max-width: 400px) {
+  .metrics-row { grid-template-columns: repeat(2, 1fr); }
+  .form-row { flex-direction: column; gap: 10px; }
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--success); color: #fff; padding: 10px 24px;
+  border-radius: 8px; font-size: 14px; font-weight: 500;
+  z-index: 300; opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="logo">Fit<span>Log</span></div>
+  <div class="mode-switch">
+    <button class="mode-btn active" onclick="switchMode('trainer')">教练录入</button>
+    <button class="mode-btn" onclick="switchMode('client')">学员查看</button>
+  </div>
+</div>
+
+<!-- ==================== TRAINER MODE ==================== -->
+<div id="trainerMode">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('trainer','test')">体测录入</button>
+    <button class="tab-btn" onclick="switchTab('trainer','session')">训练录入</button>
+    <button class="tab-btn" onclick="switchTab('trainer','history')">录入历史</button>
+  </div>
+  <div class="container">
+
+    <!-- ===== Fitness Test Input ===== -->
+    <div id="trainer-test" class="page active">
+      <div class="card">
+        <div class="card-title">基本信息</div>
+        <div class="form-group">
+          <label class="form-label">测试日期</label>
+          <input type="date" class="form-input" id="testDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">备注标签</label>
+          <div class="quick-tags" id="testTags">
+            <button class="quick-tag" data-v="训练期初">训练期初</button>
+            <button class="quick-tag" data-v="训练期中">训练期中</button>
+            <button class="quick-tag" data-v="训练期末">训练期末</button>
+            <button class="quick-tag" data-v="月度测试">月度测试</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">身体数据</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">体重 (kg)</label><input type="number" step="0.1" class="form-input" id="t_weight" placeholder="65.0"></div>
+          <div class="form-group"><label class="form-label">体脂率 (%)</label><input type="number" step="0.1" class="form-input" id="t_bodyFat" placeholder="18.0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">肌肉量 (kg)</label><input type="number" step="0.1" class="form-input" id="t_muscle" placeholder="28.0"></div>
+          <div class="form-group"><label class="form-label">BMI</label><input type="number" step="0.1" class="form-input" id="t_bmi" placeholder="22.0"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">围度测量 (cm)</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">胸围</label><input type="number" step="0.1" class="form-input" id="t_chest" placeholder="90"></div>
+          <div class="form-group"><label class="form-label">腰围</label><input type="number" step="0.1" class="form-input" id="t_waist" placeholder="76"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">臀围</label><input type="number" step="0.1" class="form-input" id="t_hip" placeholder="92"></div>
+          <div class="form-group"><label class="form-label">大腿围</label><input type="number" step="0.1" class="form-input" id="t_thigh" placeholder="52"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">上臂围</label><input type="number" step="0.1" class="form-input" id="t_arm" placeholder="30"></div>
+          <div class="form-group"><label class="form-label">小腿围</label><input type="number" step="0.1" class="form-input" id="t_calf" placeholder="36"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">体能测试</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">深蹲1RM (kg)</label><input type="number" step="0.5" class="form-input" id="t_squat" placeholder="60"></div>
+          <div class="form-group"><label class="form-label">卧推1RM (kg)</label><input type="number" step="0.5" class="form-input" id="t_bench" placeholder="40"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">硬拉1RM (kg)</label><input type="number" step="0.5" class="form-input" id="t_deadlift" placeholder="80"></div>
+          <div class="form-group"><label class="form-label">引体向上 (个)</label><input type="number" class="form-input" id="t_pullup" placeholder="5"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">平板支撑 (秒)</label><input type="number" class="form-input" id="t_plank" placeholder="60"></div>
+          <div class="form-group"><label class="form-label">1km跑 (秒)</label><input type="number" class="form-input" id="t_run1k" placeholder="300"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">备注</label>
+          <textarea class="form-textarea" id="t_notes" placeholder="其他体测记录..."></textarea>
+        </div>
+      </div>
+      <button class="btn btn-accent btn-block" onclick="saveTest()">保存体测记录</button>
+      <div style="height:24px"></div>
+    </div>
+
+    <!-- ===== Training Session Input ===== -->
+    <div id="trainer-session" class="page">
+      <div class="card">
+        <div class="card-title">训练信息</div>
+        <div class="form-group">
+          <label class="form-label">训练日期</label>
+          <input type="date" class="form-input" id="sessionDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">训练目的</label>
+          <div class="quick-tags" id="purposeTags">
+            <button class="quick-tag" data-v="增肌">增肌</button>
+            <button class="quick-tag" data-v="减脂">减脂</button>
+            <button class="quick-tag" data-v="力量">力量</button>
+            <button class="quick-tag" data-v="耐力">耐力</button>
+            <button class="quick-tag" data-v="柔韧性">柔韧性</button>
+            <button class="quick-tag" data-v="康复">康复</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">训练部位</label>
+          <div class="quick-tags" id="bodyPartTags">
+            <button class="quick-tag" data-v="胸">胸</button>
+            <button class="quick-tag" data-v="背">背</button>
+            <button class="quick-tag" data-v="肩">肩</button>
+            <button class="quick-tag" data-v="腿">腿</button>
+            <button class="quick-tag" data-v="臂">臂</button>
+            <button class="quick-tag" data-v="核心">核心</button>
+            <button class="quick-tag" data-v="全身">全身</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">训练动作</div>
+        <div id="exerciseList"></div>
+        <button class="btn btn-ghost btn-sm" onclick="addExercise()">+ 添加动作</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">有氧 / 耐力</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">类型</label>
+            <div class="quick-tags" id="cardioTypeTags">
+              <button class="quick-tag" data-v="跑步">跑步</button>
+              <button class="quick-tag" data-v="椭圆机">椭圆机</button>
+              <button class="quick-tag" data-v="划船机">划船机</button>
+              <button class="quick-tag" data-v="跳绳">跳绳</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">时长 (分钟)</label><input type="number" class="form-input" id="cardioDuration" placeholder="20"></div>
+          <div class="form-group"><label class="form-label">距离 (km)</label><input type="number" step="0.1" class="form-input" id="cardioDistance" placeholder="3.0"></div>
+          <div class="form-group"><label class="form-label">心率 (avg)</label><input type="number" class="form-input" id="cardioHR" placeholder="140"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">教练备注</label>
+          <textarea class="form-textarea" id="sessionNotes" placeholder="训练感受、调整建议..."></textarea>
+        </div>
+      </div>
+      <button class="btn btn-accent btn-block" onclick="saveSession()">保存训练记录</button>
+      <div style="height:24px"></div>
+    </div>
+
+    <!-- ===== Trainer History ===== -->
+    <div id="trainer-history" class="page">
+      <div class="data-bar">
+        <button class="btn btn-ghost btn-sm" onclick="exportData()">导出数据</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()">导入数据</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== CLIENT MODE ==================== -->
+<div id="clientMode" style="display:none">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('client','dashboard')">数据看板</button>
+    <button class="tab-btn" onclick="switchTab('client','records')">训练明细</button>
+    <button class="tab-btn" onclick="switchTab('client','tests')">体测对比</button>
+  </div>
+  <div class="container">
+
+    <!-- ===== Dashboard ===== -->
+    <div id="client-dashboard" class="page active">
+      <div class="metrics-row" id="metricsRow"></div>
+      <div class="chart-card">
+        <h4>训练容量趋势（每次总负荷 kg）</h4>
+        <div class="chart-wrapper"><canvas id="chartVolume"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4>体重 / 体脂率变化</h4>
+        <div class="chart-wrapper"><canvas id="chartBody"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4>核心力量变化（1RM）</h4>
+        <div class="chart-wrapper"><canvas id="chartStrength"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4>围度变化</h4>
+        <div class="chart-wrapper"><canvas id="chartCircum"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ===== Training Records ===== -->
+    <div id="client-records" class="page">
+      <div id="clientRecordsList"></div>
+    </div>
+
+    <!-- ===== Test Comparison ===== -->
+    <div id="client-tests" class="page">
+      <div id="testComparison"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Detail Modal ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== DATA LAYER ==========
+const STORAGE_KEY = 'fitlog_data';
+
+function getData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { tests: [], sessions: [] }; }
+  catch { return { tests: [], sessions: [] }; }
+}
+
+function setData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ========== UI NAVIGATION ==========
+function switchMode(mode) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('trainerMode').style.display = mode === 'trainer' ? '' : 'none';
+  document.getElementById('clientMode').style.display = mode === 'client' ? '' : 'none';
+  if (mode === 'client') renderClientView();
+}
+
+function switchTab(mode, tab) {
+  const parent = document.getElementById(mode + 'Mode');
+  parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  parent.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(mode + '-' + tab).classList.add('active');
+  if (mode === 'trainer' && tab === 'history') renderHistory();
+  if (mode === 'client') renderClientView();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ========== QUICK TAGS ==========
+document.querySelectorAll('.quick-tags').forEach(container => {
+  container.addEventListener('click', e => {
+    if (e.target.classList.contains('quick-tag')) {
+      const multi = container.id === 'bodyPartTags' || container.id === 'purposeTags';
+      if (!multi) container.querySelectorAll('.quick-tag').forEach(t => t.classList.remove('selected'));
+      e.target.classList.toggle('selected');
+    }
+  });
+});
+
+function getSelectedTags(containerId) {
+  return [...document.querySelectorAll('#' + containerId + ' .quick-tag.selected')].map(t => t.dataset.v);
+}
+
+function clearTags(containerId) {
+  document.querySelectorAll('#' + containerId + ' .quick-tag').forEach(t => t.classList.remove('selected'));
+}
+
+// ========== EXERCISE BUILDER ==========
+let exerciseCounter = 0;
+
+function addExercise() {
+  exerciseCounter++;
+  const id = exerciseCounter;
+  const div = document.createElement('div');
+  div.className = 'exercise-block';
+  div.id = 'ex_' + id;
+  div.innerHTML = `
+    <div class="exercise-header">
+      <input class="exercise-name-input" placeholder="动作名称（如：杠铃深蹲）" id="exName_${id}">
+      <button class="remove-btn" onclick="document.getElementById('ex_${id}').remove()">&times;</button>
+    </div>
+    <div id="exSets_${id}">
+      <div class="set-row">
+        <span class="set-label">第1组</span>
+        <input class="form-input-sm" type="number" placeholder="重量" step="0.5"> <span class="unit-label">kg</span>
+        <span style="margin:0 2px">×</span>
+        <input class="form-input-sm" type="number" placeholder="次数"> <span class="unit-label">次</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addSet(${id})">+ 组</button>
+  `;
+  document.getElementById('exerciseList').appendChild(div);
+}
+
+function addSet(exId) {
+  const container = document.getElementById('exSets_' + exId);
+  const n = container.children.length + 1;
+  const row = document.createElement('div');
+  row.className = 'set-row';
+  row.innerHTML = `
+    <span class="set-label">第${n}组</span>
+    <input class="form-input-sm" type="number" placeholder="重量" step="0.5"> <span class="unit-label">kg</span>
+    <span style="margin:0 2px">×</span>
+    <input class="form-input-sm" type="number" placeholder="次数"> <span class="unit-label">次</span>
+    <button class="remove-btn" onclick="this.parentElement.remove()">&times;</button>
+  `;
+  container.appendChild(row);
+}
+
+function collectExercises() {
+  const exercises = [];
+  document.querySelectorAll('.exercise-block').forEach(block => {
+    const id = block.id.split('_')[1];
+    const name = document.getElementById('exName_' + id).value.trim();
+    if (!name) return;
+    const sets = [];
+    block.querySelectorAll('.set-row').forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const w = parseFloat(inputs[0].value) || 0;
+      const r = parseInt(inputs[1].value) || 0;
+      if (w > 0 || r > 0) sets.push({ weight: w, reps: r });
+    });
+    exercises.push({ name, sets });
+  });
+  return exercises;
+}
+
+// ========== SAVE TEST ==========
+function saveTest() {
+  const date = document.getElementById('testDate').value;
+  if (!date) { showToast('请选择测试日期'); return; }
+
+  const fields = ['weight','bodyFat','muscle','bmi','chest','waist','hip','thigh','arm','calf','squat','bench','deadlift','pullup','plank','run1k'];
+  const record = { id: Date.now(), date, tags: getSelectedTags('testTags'), notes: document.getElementById('t_notes').value.trim() };
+
+  fields.forEach(f => {
+    const val = parseFloat(document.getElementById('t_' + f).value);
+    if (!isNaN(val)) record[f] = val;
+  });
+
+  const data = getData();
+  data.tests.push(record);
+  data.tests.sort((a, b) => a.date.localeCompare(b.date));
+  setData(data);
+
+  // Reset form
+  fields.forEach(f => document.getElementById('t_' + f).value = '');
+  document.getElementById('t_notes').value = '';
+  clearTags('testTags');
+  showToast('体测记录已保存');
+}
+
+// ========== SAVE SESSION ==========
+function saveSession() {
+  const date = document.getElementById('sessionDate').value;
+  if (!date) { showToast('请选择训练日期'); return; }
+
+  const exercises = collectExercises();
+  const purposes = getSelectedTags('purposeTags');
+  const bodyParts = getSelectedTags('bodyPartTags');
+  const cardioTypes = getSelectedTags('cardioTypeTags');
+
+  const record = {
+    id: Date.now(), date, purposes, bodyParts, exercises,
+    cardio: {
+      types: cardioTypes,
+      duration: parseFloat(document.getElementById('cardioDuration').value) || 0,
+      distance: parseFloat(document.getElementById('cardioDistance').value) || 0,
+      hr: parseInt(document.getElementById('cardioHR').value) || 0,
+    },
+    notes: document.getElementById('sessionNotes').value.trim(),
+    totalVolume: exercises.reduce((sum, ex) => sum + ex.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0)
+  };
+
+  const data = getData();
+  data.sessions.push(record);
+  data.sessions.sort((a, b) => a.date.localeCompare(b.date));
+  setData(data);
+
+  // Reset
+  document.getElementById('exerciseList').innerHTML = '';
+  document.getElementById('cardioDuration').value = '';
+  document.getElementById('cardioDistance').value = '';
+  document.getElementById('cardioHR').value = '';
+  document.getElementById('sessionNotes').value = '';
+  clearTags('purposeTags');
+  clearTags('bodyPartTags');
+  clearTags('cardioTypeTags');
+  exerciseCounter = 0;
+  showToast('训练记录已保存');
+}
+
+// ========== HISTORY ==========
+function renderHistory() {
+  const data = getData();
+  const el = document.getElementById('historyList');
+  const all = [
+    ...data.tests.map(t => ({ ...t, _type: 'test' })),
+    ...data.sessions.map(s => ({ ...s, _type: 'session' }))
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!all.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>暂无记录</p></div>';
+    return;
+  }
+
+  el.innerHTML = all.map(r => {
+    if (r._type === 'test') {
+      return `<div class="record-item" onclick="showTestDetail(${r.id})">
+        <div class="record-date">${r.date}</div>
+        <div class="record-summary">体测记录${r.weight ? ' · 体重 ' + r.weight + 'kg' : ''}</div>
+        <div class="record-tags">${r.tags.map(t => `<span class="record-tag test">${t}</span>`).join('')}<span class="record-tag test">体测</span></div>
+      </div>`;
+    } else {
+      return `<div class="record-item" onclick="showSessionDetail(${r.id})">
+        <div class="record-date">${r.date}</div>
+        <div class="record-summary">${r.exercises.map(e => e.name).join(' / ') || '训练记录'}${r.totalVolume ? ' · ' + r.totalVolume + 'kg' : ''}</div>
+        <div class="record-tags">${r.purposes.map(p => `<span class="record-tag">${p}</span>`).join('')}${r.bodyParts.map(p => `<span class="record-tag">${p}</span>`).join('')}</div>
+      </div>`;
+    }
+  }).join('');
+}
+
+// ========== DETAIL MODALS ==========
+function openModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+
+function showTestDetail(id) {
+  const data = getData();
+  const r = data.tests.find(t => t.id === id);
+  if (!r) return;
+  const fieldLabels = {
+    weight:'体重(kg)', bodyFat:'体脂率(%)', muscle:'肌肉量(kg)', bmi:'BMI',
+    chest:'胸围(cm)', waist:'腰围(cm)', hip:'臀围(cm)', thigh:'大腿围(cm)', arm:'上臂围(cm)', calf:'小腿围(cm)',
+    squat:'深蹲1RM(kg)', bench:'卧推1RM(kg)', deadlift:'硬拉1RM(kg)',
+    pullup:'引体向上(个)', plank:'平板支撑(秒)', run1k:'1km跑(秒)'
+  };
+  let rows = Object.entries(fieldLabels).filter(([k]) => r[k] !== undefined).map(([k, label]) => `<tr><td>${label}</td><td><strong>${r[k]}</strong></td></tr>`).join('');
+  openModal(`
+    <h3>体测记录 · ${r.date}</h3>
+    <div class="record-tags" style="margin-bottom:12px">${r.tags.map(t => `<span class="record-tag test">${t}</span>`).join('')}</div>
+    <table class="detail-table">${rows}</table>
+    ${r.notes ? `<div class="detail-section" style="margin-top:12px"><div class="detail-label">备注</div><p style="font-size:13px">${r.notes}</p></div>` : ''}
+    <div style="margin-top:16px;text-align:right"><button class="btn btn-danger btn-sm" onclick="deleteRecord('test',${r.id})">删除</button></div>
+  `);
+}
+
+function showSessionDetail(id) {
+  const data = getData();
+  const r = data.sessions.find(s => s.id === id);
+  if (!r) return;
+  let exHtml = r.exercises.map(ex => {
+    let setsHtml = ex.sets.map((s, i) => `<tr><td>第${i+1}组</td><td>${s.weight}kg</td><td>${s.reps}次</td><td>${(s.weight * s.reps).toFixed(0)}kg</td></tr>`).join('');
+    const vol = ex.sets.reduce((s, set) => s + set.weight * set.reps, 0);
+    return `<div class="detail-section"><div class="detail-label">${ex.name}（总容量 ${vol.toFixed(0)}kg）</div><table class="detail-table"><tr><th>组</th><th>重量</th><th>次数</th><th>容量</th></tr>${setsHtml}</table></div>`;
+  }).join('');
+  let cardioHtml = '';
+  if (r.cardio && (r.cardio.duration || r.cardio.distance)) {
+    cardioHtml = `<div class="detail-section"><div class="detail-label">有氧</div><p style="font-size:13px">${r.cardio.types.join('、')} · ${r.cardio.duration}分钟${r.cardio.distance ? ' · ' + r.cardio.distance + 'km' : ''}${r.cardio.hr ? ' · 心率' + r.cardio.hr : ''}</p></div>`;
+  }
+  openModal(`
+    <h3>训练记录 · ${r.date}</h3>
+    <div class="record-tags" style="margin-bottom:12px">${r.purposes.map(p => `<span class="record-tag">${p}</span>`).join('')}${r.bodyParts.map(p => `<span class="record-tag">${p}</span>`).join('')}</div>
+    <div class="detail-section"><div class="detail-label">总容量</div><p style="font-size:20px;font-weight:700;color:var(--primary-light)">${r.totalVolume.toFixed(0)} kg</p></div>
+    ${exHtml}${cardioHtml}
+    ${r.notes ? `<div class="detail-section"><div class="detail-label">教练备注</div><p style="font-size:13px">${r.notes}</p></div>` : ''}
+    <div style="margin-top:16px;text-align:right"><button class="btn btn-danger btn-sm" onclick="deleteRecord('session',${r.id})">删除</button></div>
+  `);
+}
+
+function deleteRecord(type, id) {
+  if (!confirm('确认删除此记录？')) return;
+  const data = getData();
+  if (type === 'test') data.tests = data.tests.filter(t => t.id !== id);
+  else data.sessions = data.sessions.filter(s => s.id !== id);
+  setData(data);
+  closeModal();
+  renderHistory();
+  showToast('已删除');
+}
+
+// ========== CLIENT VIEW ==========
+let charts = {};
+
+function renderClientView() {
+  renderMetrics();
+  renderVolumeChart();
+  renderBodyChart();
+  renderStrengthChart();
+  renderCircumChart();
+  renderClientRecords();
+  renderTestComparison();
+}
+
+function renderMetrics() {
+  const data = getData();
+  const el = document.getElementById('metricsRow');
+  const sessions = data.sessions;
+  const tests = data.tests;
+
+  const totalSessions = sessions.length;
+  const totalVolume = sessions.reduce((s, r) => s + (r.totalVolume || 0), 0);
+  const latestWeight = tests.length ? tests[tests.length - 1].weight : null;
+  const firstWeight = tests.length ? tests[0].weight : null;
+  const weightChange = (latestWeight && firstWeight) ? (latestWeight - firstWeight).toFixed(1) : null;
+
+  el.innerHTML = `
+    <div class="metric-card"><div class="metric-value">${totalSessions}</div><div class="metric-label">训练次数</div></div>
+    <div class="metric-card"><div class="metric-value">${totalVolume >= 1000 ? (totalVolume / 1000).toFixed(1) + 'k' : totalVolume.toFixed(0)}</div><div class="metric-label">总负荷(kg)</div></div>
+    <div class="metric-card"><div class="metric-value">${latestWeight || '--'}</div><div class="metric-label">当前体重</div>${weightChange ? `<div class="metric-change ${parseFloat(weightChange) > 0 ? 'up' : 'down'}">${parseFloat(weightChange) > 0 ? '+' : ''}${weightChange}kg</div>` : ''}</div>
+  `;
+}
+
+function chartColors() {
+  return {
+    primary: 'rgba(108,92,231,1)', primaryBg: 'rgba(108,92,231,.15)',
+    accent: 'rgba(0,206,201,1)', accentBg: 'rgba(0,206,201,.15)',
+    danger: 'rgba(255,107,107,1)', dangerBg: 'rgba(255,107,107,.15)',
+    success: 'rgba(0,184,148,1)', successBg: 'rgba(0,184,148,.15)',
+    yellow: 'rgba(253,203,110,1)', yellowBg: 'rgba(253,203,110,.15)',
+    pink: 'rgba(232,67,147,1)', pinkBg: 'rgba(232,67,147,.15)',
+  };
+}
+
+function makeChartOptions(extra = {}) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#8892a4', font: { size: 11 } } } },
+    scales: {
+      x: { ticks: { color: '#8892a4', font: { size: 10 } }, grid: { color: 'rgba(42,45,58,.5)' } },
+      y: { ticks: { color: '#8892a4', font: { size: 10 } }, grid: { color: 'rgba(42,45,58,.5)' } },
+      ...extra
+    }
+  };
+}
+
+function renderVolumeChart() {
+  const data = getData();
+  const sessions = data.sessions;
+  if (charts.volume) charts.volume.destroy();
+  const c = chartColors();
+  const ctx = document.getElementById('chartVolume');
+  if (!sessions.length) { ctx.parentElement.innerHTML = '<div class="empty-state"><p>暂无训练数据</p></div>'; return; }
+  charts.volume = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sessions.map(s => s.date.slice(5)),
+      datasets: [{ label: '总负荷(kg)', data: sessions.map(s => s.totalVolume || 0), backgroundColor: c.primaryBg, borderColor: c.primary, borderWidth: 1.5, borderRadius: 4 }]
+    },
+    options: makeChartOptions()
+  });
+}
+
+function renderBodyChart() {
+  const data = getData();
+  const tests = data.tests;
+  if (charts.body) charts.body.destroy();
+  const c = chartColors();
+  const ctx = document.getElementById('chartBody');
+  if (!tests.length) { ctx.parentElement.innerHTML = '<div class="empty-state"><p>暂无体测数据</p></div>'; return; }
+  charts.body = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: tests.map(t => t.date.slice(5)),
+      datasets: [
+        { label: '体重(kg)', data: tests.map(t => t.weight ?? null), borderColor: c.primary, backgroundColor: c.primaryBg, tension: .3, fill: true, yAxisID: 'y' },
+        { label: '体脂率(%)', data: tests.map(t => t.bodyFat ?? null), borderColor: c.accent, backgroundColor: c.accentBg, tension: .3, fill: true, yAxisID: 'y1' }
+      ]
+    },
+    options: makeChartOptions({
+      y: { position: 'left', ticks: { color: '#8892a4', font: { size: 10 } }, grid: { color: 'rgba(42,45,58,.5)' } },
+      y1: { position: 'right', ticks: { color: '#8892a4', font: { size: 10 } }, grid: { drawOnChartArea: false } }
+    })
+  });
+}
+
+function renderStrengthChart() {
+  const data = getData();
+  const tests = data.tests;
+  if (charts.strength) charts.strength.destroy();
+  const c = chartColors();
+  const ctx = document.getElementById('chartStrength');
+  if (!tests.length) { ctx.parentElement.innerHTML = '<div class="empty-state"><p>暂无体测数据</p></div>'; return; }
+  charts.strength = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: tests.map(t => t.date.slice(5)),
+      datasets: [
+        { label: '深蹲', data: tests.map(t => t.squat ?? null), borderColor: c.primary, tension: .3, pointRadius: 4 },
+        { label: '卧推', data: tests.map(t => t.bench ?? null), borderColor: c.accent, tension: .3, pointRadius: 4 },
+        { label: '硬拉', data: tests.map(t => t.deadlift ?? null), borderColor: c.danger, tension: .3, pointRadius: 4 }
+      ]
+    },
+    options: makeChartOptions()
+  });
+}
+
+function renderCircumChart() {
+  const data = getData();
+  const tests = data.tests;
+  if (charts.circum) charts.circum.destroy();
+  const c = chartColors();
+  const ctx = document.getElementById('chartCircum');
+  if (!tests.length) { ctx.parentElement.innerHTML = '<div class="empty-state"><p>暂无体测数据</p></div>'; return; }
+  charts.circum = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: tests.map(t => t.date.slice(5)),
+      datasets: [
+        { label: '胸围', data: tests.map(t => t.chest ?? null), borderColor: c.primary, tension: .3 },
+        { label: '腰围', data: tests.map(t => t.waist ?? null), borderColor: c.danger, tension: .3 },
+        { label: '臀围', data: tests.map(t => t.hip ?? null), borderColor: c.accent, tension: .3 },
+        { label: '上臂围', data: tests.map(t => t.arm ?? null), borderColor: c.yellow, tension: .3 },
+        { label: '大腿围', data: tests.map(t => t.thigh ?? null), borderColor: c.pink, tension: .3 }
+      ]
+    },
+    options: makeChartOptions()
+  });
+}
+
+function renderClientRecords() {
+  const data = getData();
+  const el = document.getElementById('clientRecordsList');
+  const sessions = [...data.sessions].reverse();
+  if (!sessions.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🏋️</div><p>暂无训练记录</p></div>'; return; }
+  el.innerHTML = sessions.map(r => `
+    <div class="record-item" onclick="showSessionDetail(${r.id})">
+      <div class="record-date">${r.date}</div>
+      <div class="record-summary">${r.exercises.map(e => e.name).join(' / ') || '训练'} · 总容量 ${r.totalVolume.toFixed(0)}kg</div>
+      <div class="record-tags">${r.purposes.map(p => `<span class="record-tag">${p}</span>`).join('')}${r.bodyParts.map(p => `<span class="record-tag">${p}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+function renderTestComparison() {
+  const data = getData();
+  const el = document.getElementById('testComparison');
+  const tests = data.tests;
+  if (tests.length < 1) { el.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>暂无体测数据</p></div>'; return; }
+
+  const fields = [
+    ['weight','体重','kg'],['bodyFat','体脂率','%'],['muscle','肌肉量','kg'],['bmi','BMI',''],
+    ['chest','胸围','cm'],['waist','腰围','cm'],['hip','臀围','cm'],['thigh','大腿围','cm'],['arm','上臂围','cm'],['calf','小腿围','cm'],
+    ['squat','深蹲1RM','kg'],['bench','卧推1RM','kg'],['deadlift','硬拉1RM','kg'],
+    ['pullup','引体向上','个'],['plank','平板支撑','秒'],['run1k','1km跑','秒']
+  ];
+
+  const first = tests[0];
+  const last = tests[tests.length - 1];
+  const isSame = first.id === last.id;
+
+  let html = `<div class="card"><div class="card-title">体测对比${isSame ? '' : ` · ${first.date} → ${last.date}`}</div>`;
+  html += `<table class="compare-table"><tr><th>项目</th>${isSame ? '<th>数值</th>' : `<th>${first.date.slice(5)}</th><th>${last.date.slice(5)}</th><th>变化</th>`}</tr>`;
+  fields.forEach(([key, label, unit]) => {
+    const fv = first[key], lv = last[key];
+    if (fv === undefined && lv === undefined) return;
+    if (isSame) {
+      html += `<tr><td>${label}</td><td>${fv !== undefined ? fv + unit : '--'}</td></tr>`;
+    } else {
+      const diff = (fv !== undefined && lv !== undefined) ? (lv - fv) : null;
+      // For body fat, waist, run1k: decrease is good. For others: increase is good.
+      const inversed = ['bodyFat','waist','run1k','bmi'].includes(key);
+      const cls = diff !== null ? (inversed ? (diff < 0 ? 'change-up' : diff > 0 ? 'change-down' : '') : (diff > 0 ? 'change-up' : diff < 0 ? 'change-down' : '')) : '';
+      const sign = diff > 0 ? '+' : '';
+      html += `<tr><td>${label}</td><td>${fv !== undefined ? fv : '--'}</td><td>${lv !== undefined ? lv : '--'}</td><td class="${cls}">${diff !== null ? sign + diff.toFixed(1) + unit : '--'}</td></tr>`;
+    }
+  });
+  html += '</table></div>';
+
+  // Show all test records
+  if (tests.length > 1) {
+    html += '<div style="margin-top:8px">';
+    tests.slice().reverse().forEach(t => {
+      html += `<div class="record-item" onclick="showTestDetail(${t.id})">
+        <div class="record-date">${t.date}</div>
+        <div class="record-summary">体测${t.weight ? ' · 体重 ' + t.weight + 'kg' : ''}${t.bodyFat ? ' · 体脂 ' + t.bodyFat + '%' : ''}</div>
+        <div class="record-tags">${t.tags.map(tg => `<span class="record-tag test">${tg}</span>`).join('')}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ========== EXPORT / IMPORT ==========
+function exportData() {
+  const data = getData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fitlog_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  showToast('数据已导出');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.tests || !imported.sessions) throw new Error('Invalid format');
+      const current = getData();
+      // Merge by id to avoid duplicates
+      const existingTestIds = new Set(current.tests.map(t => t.id));
+      const existingSessionIds = new Set(current.sessions.map(s => s.id));
+      imported.tests.forEach(t => { if (!existingTestIds.has(t.id)) current.tests.push(t); });
+      imported.sessions.forEach(s => { if (!existingSessionIds.has(s.id)) current.sessions.push(s); });
+      current.tests.sort((a, b) => a.date.localeCompare(b.date));
+      current.sessions.sort((a, b) => a.date.localeCompare(b.date));
+      setData(current);
+      renderHistory();
+      showToast('数据已导入');
+    } catch {
+      showToast('文件格式错误');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', function() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('testDate').value = today;
+  document.getElementById('sessionDate').value = today;
+  addExercise(); // Start with one exercise block
+});
+</script>
+</body>
+</html>
