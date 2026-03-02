@@ -236,42 +236,66 @@ function compressSets(sets) {
 }
 
 // ========== OCR ==========
+let tesseractLoading = null;
+
 async function loadTesseract() {
   if (window.Tesseract) return;
-  return new Promise((resolve, reject) => {
+  if (tesseractLoading) return tesseractLoading;
+  tesseractLoading = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    s.onload = resolve; s.onerror = reject;
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4.1.4/dist/tesseract.min.js';
+    s.onload = () => {
+      if (window.Tesseract) resolve();
+      else reject(new Error('Tesseract 加载失败'));
+    };
+    s.onerror = () => reject(new Error('CDN 脚本加载失败，请检查网络'));
     document.head.appendChild(s);
   });
+  return tesseractLoading;
 }
 
 async function handleOCR(inputEl, previewEl, statusEl, barEl, resultsEl, type) {
   const file = inputEl.files[0];
   if (!file) return;
+
+  // Show preview
   previewEl.style.display = '';
-  previewEl.querySelector('img').src = URL.createObjectURL(file);
-  statusEl.textContent = '正在加载 OCR 引擎...';
+  const imgUrl = URL.createObjectURL(file);
+  previewEl.querySelector('img').src = imgUrl;
+  statusEl.textContent = '正在加载识别引擎（首次约需10秒）...';
+  statusEl.style.display = '';
   barEl.style.display = '';
-  barEl.querySelector('.ocr-bar-fill').style.width = '10%';
+  barEl.querySelector('.ocr-bar-fill').style.width = '5%';
   resultsEl.innerHTML = '';
 
   try {
     await loadTesseract();
-    statusEl.textContent = '正在识别文字...';
-    barEl.querySelector('.ocr-bar-fill').style.width = '30%';
+    barEl.querySelector('.ocr-bar-fill').style.width = '15%';
+    statusEl.textContent = '正在初始化语言包...';
 
-    const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
+    // Tesseract.js v4 API: create → loadLanguage → initialize → recognize
+    const worker = await Tesseract.createWorker({
       logger: m => {
-        if (m.status === 'recognizing text') {
-          barEl.querySelector('.ocr-bar-fill').style.width = (30 + m.progress * 60) + '%';
+        if (m.status === 'loading language traineddata') {
+          barEl.querySelector('.ocr-bar-fill').style.width = (15 + m.progress * 25) + '%';
+          statusEl.textContent = '正在下载语言包... ' + Math.round(m.progress * 100) + '%';
+        } else if (m.status === 'initializing api') {
+          barEl.querySelector('.ocr-bar-fill').style.width = '45%';
+          statusEl.textContent = '正在初始化...';
+        } else if (m.status === 'recognizing text') {
+          barEl.querySelector('.ocr-bar-fill').style.width = (45 + m.progress * 50) + '%';
+          statusEl.textContent = '正在识别文字... ' + Math.round(m.progress * 100) + '%';
         }
       }
     });
+    await worker.loadLanguage('chi_sim+eng');
+    await worker.initialize('chi_sim+eng');
+
     const { data: { text } } = await worker.recognize(file);
     await worker.terminate();
 
     barEl.querySelector('.ocr-bar-fill').style.width = '100%';
+    console.log('[OCR result]', text);
 
     if (type === 'test') {
       parseTestOCR(text, statusEl, resultsEl);
@@ -279,7 +303,8 @@ async function handleOCR(inputEl, previewEl, statusEl, barEl, resultsEl, type) {
       parseSessionOCR(text, statusEl, resultsEl);
     }
   } catch(err) {
-    statusEl.textContent = '识别失败: ' + err.message;
+    console.error('[OCR error]', err);
+    statusEl.textContent = '识别失败: ' + (err.message || '未知错误') + '，请手动填写';
     barEl.querySelector('.ocr-bar-fill').style.width = '0%';
   }
 }
